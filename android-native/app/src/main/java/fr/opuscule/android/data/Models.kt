@@ -82,6 +82,7 @@ data class ReviewSource(
     val fileName: String,
     val kind: String,
     val questionCount: Int,
+    val path: String = fileName,
 )
 
 data class DictionaryDefinition(val partOfSpeech: String, val definition: String, val example: String)

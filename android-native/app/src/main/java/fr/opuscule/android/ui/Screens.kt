@@ -94,7 +94,7 @@ private enum class RootTab(val label: String, val icon: ImageVector) {
     TODAY("Aujourd’hui", Icons.Rounded.Home),
     LIBRARY("Bibliothèque", Icons.Rounded.FolderOpen),
     CAPTURE("Capturer", Icons.Rounded.Add),
-    REVIEW("Réviser", Icons.Rounded.Quiz),
+    REVIEW("Quiz", Icons.Rounded.Quiz),
     YOU("Vous", Icons.Rounded.Person),
 }
 

@@ -25,6 +25,7 @@ class ApiClient {
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(35, TimeUnit.SECONDS)
         .build()
+    private val sourceCache = mutableMapOf<String, Pair<Long, List<ReviewSource>>>()
 
     val publicBaseUrl: String get() = BuildConfig.API_BASE_URL.removeSuffix("/api")
 
@@ -256,11 +257,16 @@ class ApiClient {
         return json.optJSONArray("questions").orEmpty().objects().map(::reviewQuestion)
     }
 
-    suspend fun reviewSources(token: String): List<ReviewSource> = try {
+    suspend fun reviewSources(token: String): List<ReviewSource> {
+        sourceCache[token]?.takeIf { System.currentTimeMillis() - it.first < 5 * 60_000L }?.let { return it.second }
+        val result = try {
         callArray("/questionnaires/sources", token = token).objects().map(::reviewSource)
     } catch (error: ApiException) {
         if (error.status != 404 && error.status != 405) throw error
         reviewSourcesFromFiles(token)
+    }
+        sourceCache[token] = System.currentTimeMillis() to result
+        return result
     }
 
     private suspend fun reviewSourcesFromFiles(token: String): List<ReviewSource> = coroutineScope {
@@ -288,6 +294,7 @@ class ApiClient {
         fileName = row.optString("name"),
         kind = row.optString("kind"),
         questionCount = row.optInt("question_count"),
+        path = row.optString("path", row.optString("name")),
     )
 
     private fun reviewSourceFromFile(file: FileDetail): ReviewSource? {

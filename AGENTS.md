@@ -282,10 +282,22 @@ Contenu Markdown avec [[liens-wiki]] et #tags inline...
   autorisé. Les prérequis et l'installation manuelle sont documentés dans
   `android-native/README.md`.
 
+### Quiz et révision Android
+
+- Le bouton `Quiz` de la barre basse ouvre directement le sélecteur des sources.
+- Les sources sont affichées par chemin (dossier, sous-dossier, fichier), peuvent
+  être sélectionnées en multiple et la série est limitée à 100 cartes.
+- Le sélecteur propose `Quiz` (réponse masquée) et `Révision` (réponse visible
+  dès l'ouverture de chaque carte). Les sources sont mises en cache côté client
+  pendant cinq minutes pour éviter de recharger les fichiers à chaque ouverture.
+- Le rendu de la réponse n'utilise pas d'animation entre deux cartes afin d'éviter
+  qu'une réponse précédente apparaisse brièvement. Les sélections, changements de
+  mode, révélations et évaluations utilisent un retour haptique court.
+
 ### Boucle mobile Aujourd’hui
 
 - La navigation Android native contient `Aujourd’hui`, `Bibliothèque`,
-  `Capturer`, `Réviser` et `Vous`.
+  `Capturer`, `Quiz` et `Vous`; le mode `Révision` se choisit depuis `Quiz`.
 - `Aujourd’hui` organise le défilement vertical par catégories stables : Quiz,
   Définitions, Personnes, Idées, Articles, Citations puis À vérifier. Une
   catégorie absente des données n’occupe pas de page vide.

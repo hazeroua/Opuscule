@@ -99,8 +99,9 @@ fun ReviewScreen(state: AppState, openSource: (String) -> Unit, onImmersiveChang
     var missed by remember { mutableStateOf<List<ReviewQuestion>>(emptyList()) }
     val history = remember { mutableStateListOf<Pair<ReviewQuestion, Boolean>>() }
     var loading by remember { mutableStateOf(false) }
-    var selector by remember { mutableStateOf(false) }
+    var selector by remember { mutableStateOf(true) }
     var questionLimit by remember { mutableIntStateOf(10) }
+    var revisionMode by remember { mutableStateOf(false) }
     var lastIds by remember { mutableStateOf<List<String>?>(null) }
     var lastKinds by remember { mutableStateOf(setOf("questionnaire", "definition", "actor")) }
     var editing by remember { mutableStateOf<ReviewQuestion?>(null) }
@@ -114,8 +115,8 @@ fun ReviewScreen(state: AppState, openSource: (String) -> Unit, onImmersiveChang
         onDispose { if (immersive) onImmersiveChange(false) }
     }
 
-    fun start(ids: List<String>? = null, kinds: Set<String> = setOf("questionnaire", "definition", "actor")) = scope.launch {
-        val requestedLimit = questionLimit.coerceIn(1, 50)
+    fun start(ids: List<String>? = null, kinds: Set<String> = setOf("questionnaire", "definition", "actor"), revision: Boolean = revisionMode) = scope.launch {
+        val requestedLimit = questionLimit.coerceIn(1, 100)
         loading = true
         runCatching { state.api.review(token, ids, requestedLimit, kinds.toList()) }
             .onSuccess { rows ->
@@ -126,7 +127,7 @@ fun ReviewScreen(state: AppState, openSource: (String) -> Unit, onImmersiveChang
                     lastKinds = kinds
                     session = filtered
                     index = 0
-                    revealed = false
+                    revealed = revision
                     selectedChoice = null
                     grading = false
                     known = 0
@@ -172,7 +173,7 @@ fun ReviewScreen(state: AppState, openSource: (String) -> Unit, onImmersiveChang
     }
 
     when {
-        selector -> ReviewScopeSelector(state, questionLimit, { questionLimit = it }, { selector = false }) { ids, kinds -> start(ids, kinds) }
+        selector -> ReviewScopeSelector(state, questionLimit, { questionLimit = it }, revisionMode, { revisionMode = it }, { selector = false }) { ids, kinds, revision -> start(ids, kinds, revision = revision) }
         session.isEmpty() -> ReviewLanding(state, loading, questionLimit, { questionLimit = it }, { start() }, { selector = true })
         current == null -> ReviewSummary(session.size, known, missed, { start(lastIds, lastKinds) }, {
             session = emptyList()
@@ -183,10 +184,11 @@ fun ReviewScreen(state: AppState, openSource: (String) -> Unit, onImmersiveChang
             index,
             session.size,
             revealed,
+            revisionMode,
             selectedChoice,
             grading,
             history.isNotEmpty(),
-            { selectedChoice = it },
+            { selectedChoice = it; haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
             { revealed = true; haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
             { grade(false) },
             { grade(true) },
@@ -330,15 +332,15 @@ private fun QuestionCountPicker(value: Int, update: (Int) -> Unit) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Nombre de questions", style = MaterialTheme.typography.titleMedium)
-                Text("De 1 à 50 cartes", style = MaterialTheme.typography.bodySmall, color = Muted)
+                Text("De 1 à 100 cartes", style = MaterialTheme.typography.bodySmall, color = Muted)
             }
             Text(value.toString(), color = Opuscule, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         }
         Slider(
             value = value.toFloat(),
-            onValueChange = { update(it.toInt().coerceIn(1, 50)) },
-            valueRange = 1f..50f,
-            steps = 48,
+            onValueChange = { update(it.toInt().coerceIn(1, 100)) },
+            valueRange = 1f..100f,
+            steps = 98,
             colors = SliderDefaults.colors(thumbColor = Opuscule, activeTrackColor = Opuscule),
         )
     }
@@ -361,6 +363,7 @@ private fun ReviewCard(
     index: Int,
     total: Int,
     revealed: Boolean,
+    revisionMode: Boolean,
     selectedChoice: Int?,
     grading: Boolean,
     canGoBack: Boolean,
@@ -438,7 +441,9 @@ private fun ReviewCard(
                         Modifier.fillMaxWidth(),
                         enabled = !grading && (!hasChoices || selectedChoice != null),
                     )
-                    else if (hasChoices && correctChoice != null) {
+                    else if (revisionMode) {
+                        PrimaryButton("Carte suivante", known, Modifier.fillMaxWidth(), enabled = !grading)
+                    } else if (hasChoices && correctChoice != null) {
                         PrimaryButton(
                             "Continuer",
                             if (selectedChoice == correctChoice) known else unknown,
@@ -513,12 +518,7 @@ private fun ReviewCard(
                             ReviewChoiceList(question, selectedChoice, false, selectChoice)
                         }
                     } else {
-                        AnimatedContent(
-                            revealed,
-                            transitionSpec = { fadeIn() togetherWith fadeOut() },
-                            label = "answer",
-                        ) { visible ->
-                            if (visible) {
+                        if (revealed) {
                                 Column(
                                     Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(OpusculeSoft).padding(16.dp),
                                     verticalArrangement = Arrangement.spacedBy(9.dp),
@@ -529,14 +529,11 @@ private fun ReviewCard(
                                         Text(question.explanation, style = MaterialTheme.typography.bodyLarge, color = Ink.copy(alpha = .78f))
                                     }
                                 }
-                            } else {
-                                Text(
-                                    "Formulez votre réponse mentalement.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Ink.copy(alpha = .62f),
-                                )
-                            }
-                        }
+                        } else Text(
+                            "Formulez votre réponse mentalement.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Ink.copy(alpha = .62f),
+                        )
                     }
                 }
             }
@@ -578,8 +575,10 @@ private fun ReviewScopeSelector(
     state: AppState,
     questionLimit: Int,
     updateQuestionLimit: (Int) -> Unit,
+    revisionMode: Boolean,
+    updateRevisionMode: (Boolean) -> Unit,
     back: () -> Unit,
-    start: (List<String>, Set<String>) -> Unit,
+    start: (List<String>, Set<String>, Boolean) -> Unit,
 ) {
     val token = state.token ?: return
     var sources by remember { mutableStateOf<List<ReviewSource>>(emptyList()) }
@@ -588,6 +587,7 @@ private fun ReviewScopeSelector(
     var loading by remember { mutableStateOf(true) }
     var loadFailed by remember { mutableStateOf(false) }
     var reloadKey by remember { mutableIntStateOf(0) }
+    val haptic = LocalHapticFeedback.current
     LaunchedEffect(reloadKey) {
         loading = true
         loadFailed = false
@@ -596,7 +596,10 @@ private fun ReviewScopeSelector(
             .onFailure { loadFailed = true; state.handle(it) }
         loading = false
     }
-    val visibleSources = remember(sources, kinds) { sources.filter { kinds.contains(it.kind) } }
+    val visibleSources = remember(sources, kinds) {
+        sources.filter { kinds.contains(it.kind) }
+            .sortedWith(compareBy<ReviewSource> { it.path.lowercase() }.thenBy { it.title.lowercase() })
+    }
     val selectedFileIds = remember(selected, visibleSources) {
         visibleSources.filter { selected.contains(it.id) }.map { it.id }
     }
@@ -604,6 +607,15 @@ private fun ReviewScopeSelector(
     DetailScaffold("Choisir les sources", back) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(if (revisionMode) "Mode révision" else "Mode quiz", style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    KindToggle("Quiz", "quiz-mode", if (!revisionMode) setOf("quiz-mode") else emptySet(), {
+                        updateRevisionMode(false); haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    })
+                    KindToggle("Révision", "revision-mode", if (revisionMode) setOf("revision-mode") else emptySet(), {
+                        updateRevisionMode(true); haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    })
+                }
                 Text("Types de cartes", style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     KindToggle("Quiz", "questionnaire", kinds) { kinds = it }
@@ -622,7 +634,8 @@ private fun ReviewScopeSelector(
                 items(visibleSources, key = { it.id }) { source ->
                     Row(
                         Modifier.fillMaxWidth().clickable {
-                            selected = if (selected.contains(source.id)) selected - source.id else selected + source.id
+                        selected = if (selected.contains(source.id)) selected - source.id else selected + source.id
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         }.padding(vertical = 11.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -633,6 +646,7 @@ private fun ReviewScopeSelector(
                         )
                         Icon(kindIcon(source.kind), null, tint = reviewKindAccent(source.kind), modifier = Modifier.size(20.dp))
                         Column(Modifier.padding(start = 10.dp).weight(1f)) {
+                            Text(source.path.replace("/${source.fileName}", ""), maxLines = 1, overflow = TextOverflow.Ellipsis, color = Muted, style = MaterialTheme.typography.labelSmall)
                             Text(source.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
                             Text(
                                 "${if (source.kind == "definition") "Définitions" else "Quiz"} · ${source.questionCount} carte${if (source.questionCount > 1) "s" else ""}",
@@ -644,9 +658,9 @@ private fun ReviewScopeSelector(
                 }
             }
             Column(Modifier.fillMaxWidth().background(Canvas).padding(16.dp)) {
-                Text("${selectedFileIds.size} source(s) · jusqu’à $questionLimit questions", color = Muted, style = MaterialTheme.typography.bodyMedium)
+                Text("${selectedFileIds.size} fichier(s) · jusqu’à $questionLimit questions", color = Muted, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(9.dp))
-                PrimaryButton("Commencer", { start(selectedFileIds, kinds) }, Modifier.fillMaxWidth(), selectedFileIds.isNotEmpty() && kinds.isNotEmpty())
+                PrimaryButton(if (revisionMode) "Réviser" else "Lancer le quiz", { start(selectedFileIds, kinds, revisionMode) }, Modifier.fillMaxWidth(), selectedFileIds.isNotEmpty() && kinds.isNotEmpty())
             }
         }
     }
