@@ -104,6 +104,9 @@ app.use((err, req, res, _next) => {
 
 // Serve built React app
 const clientBuild = path.join(__dirname, 'public')
+// L'espace de travail authentifié a une URL d'entrée stable. Les articles
+// publics restent accessibles séparément via /articles/:id.
+app.get('/', (_req, res) => res.redirect('/app'))
 app.use(express.static(clientBuild))
 app.get('/{*splat}', (req, res) => {
   const fs = require('fs')
