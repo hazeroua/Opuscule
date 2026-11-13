@@ -47,7 +47,6 @@ class AppState(application: Application) : AndroidViewModel(application) {
                 runCatching { api.me(token!!) }
                     .onSuccess {
                         user = it
-                        viewModelScope.launch { runCatching { api.reviewSources(token!!) } }
                     }
                     .onFailure { clearSession() }
             }
@@ -65,7 +64,6 @@ class AppState(application: Application) : AndroidViewModel(application) {
                     token = nextToken
                     user = nextUser
                     tokenStore.save(nextToken)
-                    viewModelScope.launch { runCatching { api.reviewSources(nextToken) } }
                 }
                 .onFailure { message = it.userMessage() }
             authBusy = false

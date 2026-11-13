@@ -102,7 +102,6 @@ fun FilesScreen(state: AppState, openOverlay: (String) -> Unit, openArticles: ((
         runCatching { state.api.files(token) }
             .onSuccess {
                 roots = it
-                if (expanded.isEmpty()) expanded = it.filter(FileNode::isFolder).map(FileNode::id).toSet()
             }
             .onFailure { error = it.message }
         loading = false
