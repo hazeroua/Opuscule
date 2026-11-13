@@ -1,8 +1,10 @@
 const yauzl = require('yauzl')
 
-const MAX_ENTRIES = 2000
-const MAX_ENTRY_BYTES = 25 * 1024 * 1024
-const MAX_TOTAL_BYTES = 250 * 1024 * 1024
+// Les exports peuvent contenir des binaires (photos, audios) en plus des notes.
+// Les bornes restent finies pour éviter les archives ZIP abusives.
+const MAX_ENTRIES = 10000
+const MAX_ENTRY_BYTES = 100 * 1024 * 1024
+const MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 const MAX_COMPRESSION_RATIO = 100
 
 function readBoundedZip(filePath, { accept } = {}) {

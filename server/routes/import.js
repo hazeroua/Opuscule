@@ -19,12 +19,15 @@ const ROADTRIP_PHOTO_EXT = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp
 
 const IMPORT_TMP_DIR = path.join(os.tmpdir(), 'opuscule-imports')
 if (!fs.existsSync(IMPORT_TMP_DIR)) fs.mkdirSync(IMPORT_TMP_DIR, { recursive: true })
+// Les sauvegardes Obsidian peuvent contenir des photos et des enregistrements.
+// Cette limite concerne uniquement le ZIP d'import, pas les autres uploads.
+const MAX_IMPORT_UPLOAD_BYTES = 250 * 1024 * 1024
 const upload = multer({
   storage: multer.diskStorage({
     destination: IMPORT_TMP_DIR,
     filename: (_req, _file, callback) => callback(null, `${uuidv4()}.zip`),
   }),
-  limits: { fileSize: 100 * 1024 * 1024, files: 1, fields: 10 },
+  limits: { fileSize: MAX_IMPORT_UPLOAD_BYTES, files: 1, fields: 10 },
   fileFilter: (_req, file, callback) => callback(null, /\.zip$/i.test(file.originalname || '')),
 })
 
@@ -931,7 +934,7 @@ router.post('/obsidian', upload.single('vault'), async (req, res) => {
 
 router.use((err, _req, res, next) => {
   if (!(err instanceof multer.MulterError)) return next(err)
-  if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'Le ZIP dépasse la limite de 100 Mo' })
+  if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'Le ZIP dépasse la limite de 250 Mo' })
   res.status(400).json({ error: 'Import ZIP invalide' })
 })
 
