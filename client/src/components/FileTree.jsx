@@ -40,7 +40,9 @@ function FileNode({
   const {
     openFileId, openFile, loadTree, deleteFile, toast, showContextMenu, showModal, dispatch
   } = useApp()
-  const [expanded, setExpanded] = useState(depth === 0)
+  // Garder l'arbre compact au chargement : l'utilisateur ouvre uniquement
+  // les dossiers dont il a besoin.
+  const [expanded, setExpanded] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [renameVal, setRenameVal] = useState(node.name)
   const [unlocking, setUnlocking] = useState(false)
