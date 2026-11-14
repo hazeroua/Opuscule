@@ -154,7 +154,34 @@ class ApiClient {
         term: String,
         definition: String,
         example: String,
+        targetFileId: String? = null,
     ) {
+        if (!targetFileId.isNullOrBlank()) {
+            val detail = file(token, targetFileId)
+            val json = runCatching { JSONObject(detail.content) }.getOrElse {
+                throw ApiException(400, "Le fichier de définitions sélectionné est invalide.")
+            }
+            val definitions = json.optJSONArray("definitions") ?: JSONArray().also { json.put("definitions", it) }
+            val normalizedTerm = term.trim()
+            val matching = definitions.objects().firstOrNull {
+                it.optString("term").equals(normalizedTerm, ignoreCase = true)
+            }
+            if (matching != null) {
+                matching.put("definition", definition.trim()).put("example", example.trim())
+            } else {
+                definitions.put(
+                    JSONObject()
+                        .put("id", "d-${System.currentTimeMillis()}")
+                        .put("term", normalizedTerm)
+                        .put("definition", definition.trim())
+                        .put("example", example.trim())
+                        .put("tags", JSONArray())
+                )
+            }
+            json.put("modified", Instant.now().toString())
+            updateFile(token, detail, json.toString(2))
+            return
+        }
         val folderName = "Définitions capturées"
         val fileName = "Mes définitions.json"
         var roots = files(token)
@@ -235,6 +262,9 @@ class ApiClient {
         json.put("modified", now)
         updateFile(token, detail, json.toString(2))
     }
+
+    suspend fun definitionSources(token: String): List<ReviewSource> =
+        reviewSources(token).filter { it.kind == "definition" }
 
     suspend fun openEncryptedFolder(token: String, id: String, password: String) {
         call("/files/$id/encryption/open", "POST", JSONObject().put("password", password), token)
@@ -580,8 +610,48 @@ class ApiClient {
             checks = json.optJSONArray("checks").orEmpty().objects().map {
                 PracticeCheck(it.getString("practice_id"), it.optString("entry_date"), it.optBoolean("done"))
             },
+            events = json.optJSONArray("events").orEmpty().objects().map {
+                AgendaEvent(
+                    it.getString("id"), it.optString("title"), it.nullable("notes"), it.nullable("location"),
+                    it.optString("start_date"), it.nullable("start_time"), it.optString("end_date"),
+                    it.nullable("end_time"), it.optBoolean("all_day"),
+                )
+            },
             profile = LifeProfile(profile.nullable("birth_date"), profile.optInt("life_expectancy_years", 85)),
         )
+    }
+
+    suspend fun createAgendaEvent(token: String, title: String, date: String, notes: String) {
+        call("/todos/events", "POST", JSONObject()
+            .put("title", title).put("start_date", date).put("end_date", date)
+            .put("all_day", true).put("notes", notes), token)
+    }
+
+    suspend fun updateTodo(token: String, todo: Todo, title: String, dueAt: String, notes: String) {
+        call("/todos/${todo.id}", "PUT", JSONObject()
+            .put("title", title).put("due_at", dueAt).put("notes", notes)
+            .put("status", todo.status), token)
+    }
+
+    suspend fun updatePractice(token: String, practice: Practice, title: String) {
+        call("/todos/practices/${practice.id}", "PUT", JSONObject().put("title", title).put("active", practice.active), token)
+    }
+
+    suspend fun deletePractice(token: String, id: String) {
+        call("/todos/practices/$id", "DELETE", token = token)
+    }
+
+    suspend fun deleteAgendaEvent(token: String, id: String) {
+        call("/todos/events/$id", "DELETE", token = token)
+    }
+
+    suspend fun dailyReminderSummary(token: String): DailyReminderSummary {
+        val today = LocalDate.now().toString()
+        val openTodos = todos(token, "open").count { it.dueAt <= today }
+        val current = agenda(token, 7)
+        val checkedToday = current.checks.filter { it.entryDate == today && it.done }.map { it.practiceId }.toSet()
+        val missingHabits = current.practices.count { it.active && it.id !in checkedToday }
+        return DailyReminderSummary(openTodos, missingHabits)
     }
 
     suspend fun checkPractice(token: String, id: String, date: String, done: Boolean) {

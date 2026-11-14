@@ -163,6 +163,18 @@ data class PracticeCheck(
     val done: Boolean,
 )
 
+data class AgendaEvent(
+    val id: String,
+    val title: String,
+    val notes: String?,
+    val location: String?,
+    val startDate: String,
+    val startTime: String?,
+    val endDate: String,
+    val endTime: String?,
+    val allDay: Boolean,
+)
+
 data class LifeProfile(
     val birthDate: String?,
     val lifeExpectancyYears: Int,
@@ -173,8 +185,11 @@ data class Agenda(
     val since: String,
     val practices: List<Practice>,
     val checks: List<PracticeCheck>,
+    val events: List<AgendaEvent>,
     val profile: LifeProfile,
 )
+
+data class DailyReminderSummary(val openTodoCount: Int, val missingHabitCount: Int)
 
 data class UsageDay(val date: String, val seconds: Int)
 data class UsageMonth(val month: String, val seconds: Int, val activeDays: Int)

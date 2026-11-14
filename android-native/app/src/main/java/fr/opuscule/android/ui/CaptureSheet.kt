@@ -21,11 +21,13 @@ import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +45,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import fr.opuscule.android.AppState
+import fr.opuscule.android.data.ReviewSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -64,6 +67,9 @@ fun QuickCaptureSheet(state: AppState, dismiss: () -> Unit) {
     var secondary by remember { mutableStateOf("") }
     var extra by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
+    var definitionSources by remember { mutableStateOf<List<ReviewSource>>(emptyList()) }
+    var definitionSourcesLoading by remember { mutableStateOf(false) }
+    var showDefinitionPicker by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
 
@@ -71,6 +77,18 @@ fun QuickCaptureSheet(state: AppState, dismiss: () -> Unit) {
         main = ""
         secondary = if (kind == CaptureKind.TODO) LocalDate.now().toString() else ""
         extra = ""
+        if (kind == CaptureKind.DEFINITION) {
+            definitionSourcesLoading = true
+            runCatching { state.api.definitionSources(token) }
+                .onSuccess { sources ->
+                    definitionSources = sources
+                    val selected = sources.firstOrNull { it.id == state.definitionTargetId }
+                    if (selected != null) state.selectDefinitionTarget(selected)
+                    else if (state.definitionTargetId == null) sources.firstOrNull()?.let(state::selectDefinitionTarget)
+                }
+                .onFailure { state.handle(it) }
+            definitionSourcesLoading = false
+        }
         delay(180)
         focusRequester.requestFocus()
     }
@@ -135,6 +153,12 @@ fun QuickCaptureSheet(state: AppState, dismiss: () -> Unit) {
             )
             when (kind) {
                 CaptureKind.DEFINITION -> {
+                    DefinitionTargetPicker(
+                        label = state.definitionTargetLabel ?: "Mes définitions (par défaut)",
+                        loading = definitionSourcesLoading,
+                        enabled = definitionSources.isNotEmpty(),
+                        onClick = { showDefinitionPicker = true },
+                    )
                     OpusculeField(secondary, { secondary = it }, "Définition claire", minLines = 3)
                     OpusculeField(extra, { extra = it }, "Exemple ou nuance", minLines = 2)
                 }
@@ -160,7 +184,7 @@ fun QuickCaptureSheet(state: AppState, dismiss: () -> Unit) {
                         runCatching {
                             when (kind) {
                                 CaptureKind.IDEA -> state.api.createIdea(token, main.trim())
-                                CaptureKind.DEFINITION -> state.api.addQuickDefinition(token, main.trim(), secondary.trim(), extra.trim())
+                                CaptureKind.DEFINITION -> state.api.addQuickDefinition(token, main.trim(), secondary.trim(), extra.trim(), state.definitionTargetId)
                                 CaptureKind.QUOTE -> state.api.createQuote(token, main.trim(), secondary.trim(), extra.trim())
                                 CaptureKind.FACT -> state.api.createFact(token, main.trim(), secondary.trim(), extra.trim())
                                 CaptureKind.TODO -> state.api.createTodo(token, main.trim(), secondary.trim(), extra.trim())
@@ -187,6 +211,50 @@ fun QuickCaptureSheet(state: AppState, dismiss: () -> Unit) {
             )
             Spacer(Modifier.height(6.dp))
         }
+    }
+    if (showDefinitionPicker) {
+        AlertDialog(
+            onDismissRequest = { showDefinitionPicker = false },
+            title = { Text("Fichier de définitions") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    definitionSources.forEach { source ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                state.selectDefinitionTarget(source)
+                                showDefinitionPicker = false
+                            }.padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(source.path.ifBlank { source.title }, color = Ink)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showDefinitionPicker = false }) { Text("Fermer") } },
+        )
+    }
+}
+
+@Composable
+private fun DefinitionTargetPicker(
+    label: String,
+    loading: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth()
+            .background(Surface, RoundedCornerShape(16.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Fichier cible", color = Muted, style = MaterialTheme.typography.labelMedium)
+            Text(if (loading) "Chargement…" else label, color = Ink, style = MaterialTheme.typography.bodyLarge)
+        }
+        Text(if (enabled) "Modifier" else "Aucun fichier", color = Opuscule, style = MaterialTheme.typography.labelMedium)
     }
 }
 

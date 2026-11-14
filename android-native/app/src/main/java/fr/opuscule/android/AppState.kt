@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import fr.opuscule.android.data.ApiClient
 import fr.opuscule.android.data.ApiException
+import fr.opuscule.android.data.ReviewSource
 import fr.opuscule.android.data.SecureTokenStore
 import fr.opuscule.android.data.User
 import kotlinx.coroutines.launch
@@ -17,6 +18,8 @@ class AppState(application: Application) : AndroidViewModel(application) {
     private val tokenStore = SecureTokenStore(application)
     private val appearancePreferences =
         application.getSharedPreferences("opuscule_appearance", Application.MODE_PRIVATE)
+    private val capturePreferences =
+        application.getSharedPreferences("opuscule_capture", Application.MODE_PRIVATE)
 
     var user by mutableStateOf<User?>(null)
         private set
@@ -35,6 +38,10 @@ class AppState(application: Application) : AndroidViewModel(application) {
     var readingFontSize by mutableStateOf(
         appearancePreferences.getFloat("reading_font_size", 17.5f).coerceIn(14f, 25f)
     )
+        private set
+    var definitionTargetId by mutableStateOf(capturePreferences.getString("definition_target_id", null))
+        private set
+    var definitionTargetLabel by mutableStateOf(capturePreferences.getString("definition_target_label", null))
         private set
 
     var token: String? = null
@@ -94,6 +101,15 @@ class AppState(application: Application) : AndroidViewModel(application) {
     fun updateReadingFontSize(size: Float) {
         readingFontSize = size.coerceIn(14f, 25f)
         appearancePreferences.edit().putFloat("reading_font_size", readingFontSize).apply()
+    }
+
+    fun selectDefinitionTarget(source: ReviewSource) {
+        definitionTargetId = source.id
+        definitionTargetLabel = source.path.ifBlank { source.title }
+        capturePreferences.edit()
+            .putString("definition_target_id", definitionTargetId)
+            .putString("definition_target_label", definitionTargetLabel)
+            .apply()
     }
 
     fun handle(error: Throwable) {

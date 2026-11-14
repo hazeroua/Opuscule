@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Lightbulb
@@ -83,8 +84,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.opuscule.android.AppState
 import fr.opuscule.android.data.Agenda
+import fr.opuscule.android.data.AgendaEvent
 import fr.opuscule.android.data.FactCheck
 import fr.opuscule.android.data.Idea
+import fr.opuscule.android.data.Practice
 import fr.opuscule.android.data.Quote
 import fr.opuscule.android.data.Todo
 import fr.opuscule.android.data.UsageSummary
@@ -317,6 +320,7 @@ private fun TodosScreen(state: AppState, back: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<Todo?>(null) }
+    var editing by remember { mutableStateOf<Todo?>(null) }
     val scope = rememberCoroutineScope()
     fun load() = scope.launch {
         loading = true
@@ -337,6 +341,7 @@ private fun TodosScreen(state: AppState, back: () -> Unit) {
                             TodoActionCard(
                                 row,
                                 toggle = { scope.launch { runCatching { state.api.toggleTodo(token, row) }.onSuccess { state.notify(if (row.status == "done") "Tâche rouverte" else "Tâche accomplie"); load() }.onFailure(state::handle) } },
+                                edit = { editing = row },
                                 delete = { deleting = row },
                             )
                         }
@@ -360,6 +365,16 @@ private fun TodosScreen(state: AppState, back: () -> Unit) {
             scope.launch { runCatching { state.api.deleteTodo(token, todo.id) }.onSuccess { deleting = null; state.notify("Tâche supprimée"); load() }.onFailure(state::handle) }
         }
     }
+    editing?.let { todo ->
+        SimpleCreateDialog(
+            "Modifier la tâche", "Titre", { editing = null },
+            secondaryLabel = "Échéance AAAA-MM-JJ", thirdLabel = "Notes",
+            secondaryDefault = todo.dueAt, thirdDefault = todo.notes.orEmpty(),
+            primaryDefault = todo.title, saveLabel = "Enregistrer",
+        ) { title, date, notes ->
+            scope.launch { runCatching { state.api.updateTodo(token, todo, title, date, notes) }.onSuccess { editing = null; state.notify("Tâche modifiée"); load() }.onFailure(state::handle) }
+        }
+    }
 }
 
 @Composable
@@ -370,6 +385,10 @@ private fun AgendaScreen(state: AppState, back: () -> Unit) {
     var selected by remember { mutableStateOf(LocalDate.now()) }
     var month by remember { mutableStateOf(YearMonth.now()) }
     var addingPractice by remember { mutableStateOf(false) }
+    var addingEvent by remember { mutableStateOf(false) }
+    var editingPractice by remember { mutableStateOf<Practice?>(null) }
+    var deletingPractice by remember { mutableStateOf<Practice?>(null) }
+    var deletingEvent by remember { mutableStateOf<AgendaEvent?>(null) }
     val scope = rememberCoroutineScope()
     fun load() = scope.launch {
         runCatching {
@@ -378,7 +397,11 @@ private fun AgendaScreen(state: AppState, back: () -> Unit) {
         }.onFailure(state::handle)
     }
     LaunchedEffect(Unit) { load() }
-    DetailScaffold("Agenda", back) { padding ->
+    DetailScaffold("Agenda", back, action = {
+        IconButton(onClick = { addingEvent = true }, modifier = Modifier.clip(CircleShape).background(Surface)) {
+            Icon(Icons.Rounded.Add, "Nouvel événement")
+        }
+    }) { padding ->
         if (data == null) Box(Modifier.fillMaxSize().padding(padding)) { LoadingPane() }
         else Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp)) {
             MonthHeader(month, { month = month.minusMonths(1) }, { month = month.plusMonths(1) })
@@ -395,22 +418,42 @@ private fun AgendaScreen(state: AppState, back: () -> Unit) {
                     }
                 }
             }
+            val dayEvents = data!!.events.filter { it.startDate == selected.toString() }
+            if (dayEvents.isNotEmpty()) {
+                SectionLabel("Événements")
+                dayEvents.forEach { event ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(event.title, style = MaterialTheme.typography.titleMedium)
+                            event.notes?.takeIf(String::isNotBlank)?.let { Text(it, color = Muted, style = MaterialTheme.typography.bodySmall) }
+                        }
+                        IconButton(onClick = { deletingEvent = event }) { Icon(Icons.Rounded.Delete, "Supprimer", tint = Muted) }
+                    }
+                }
+            }
             SectionLabel("Habitudes")
             data!!.practices.filter { it.active }.forEach { practice ->
                 val done = data!!.checks.any { it.practiceId == practice.id && it.entryDate == selected.toString() && it.done }
-                Row(
-                    Modifier.fillMaxWidth().clickable {
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f).clickable {
                         scope.launch {
                             runCatching { state.api.checkPractice(token, practice.id, selected.toString(), !done) }
                                 .onSuccess { load() }.onFailure(state::handle)
                         }
-                    }.padding(vertical = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(if (done) Opuscule else Surface), contentAlignment = Alignment.Center) {
-                        if (done) Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(17.dp))
+                    }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(if (done) Opuscule else Surface), contentAlignment = Alignment.Center) {
+                            if (done) Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(17.dp))
+                        }
+                        Text(practice.title, Modifier.padding(start = 11.dp), style = MaterialTheme.typography.titleMedium)
                     }
-                    Text(practice.title, Modifier.padding(start = 11.dp), style = MaterialTheme.typography.titleMedium)
+                    var menu by remember(practice.id) { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreHoriz, "Options") }
+                        DropdownMenu(menu, { menu = false }, containerColor = Canvas) {
+                            DropdownMenuItem({ Text("Modifier") }, onClick = { menu = false; editingPractice = practice })
+                            DropdownMenuItem({ Text("Supprimer", color = Danger) }, onClick = { menu = false; deletingPractice = practice })
+                        }
+                    }
                 }
             }
             TextButton(onClick = { addingPractice = true }) { Icon(Icons.Rounded.Add, null); Text(" Ajouter une habitude") }
@@ -422,6 +465,27 @@ private fun AgendaScreen(state: AppState, back: () -> Unit) {
     }
     if (addingPractice) SimpleCreateDialog("Nouvelle habitude", "Nom de l’habitude", { addingPractice = false }) { title, _, _ ->
         scope.launch { runCatching { state.api.createPractice(token, title) }.onSuccess { addingPractice = false; load() }.onFailure(state::handle) }
+    }
+    editingPractice?.let { practice ->
+        SimpleCreateDialog("Modifier l’habitude", "Nom de l’habitude", { editingPractice = null }, primaryDefault = practice.title, saveLabel = "Enregistrer") { title, _, _ ->
+            scope.launch { runCatching { state.api.updatePractice(token, practice, title) }.onSuccess { editingPractice = null; state.notify("Habitude modifiée"); load() }.onFailure(state::handle) }
+        }
+    }
+    deletingPractice?.let { practice ->
+        ConfirmDeleteDialog("Supprimer cette habitude ?", "Son historique de coches sera supprimé.", { deletingPractice = null }) {
+            scope.launch { runCatching { state.api.deletePractice(token, practice.id) }.onSuccess { deletingPractice = null; state.notify("Habitude supprimée"); load() }.onFailure(state::handle) }
+        }
+    }
+    deletingEvent?.let { event ->
+        ConfirmDeleteDialog("Supprimer cet événement ?", "Il sera retiré de votre agenda.", { deletingEvent = null }) {
+            scope.launch { runCatching { state.api.deleteAgendaEvent(token, event.id) }.onSuccess { deletingEvent = null; state.notify("Événement supprimé"); load() }.onFailure(state::handle) }
+        }
+    }
+    if (addingEvent) SimpleCreateDialog(
+        "Nouvel événement", "Titre", { addingEvent = false },
+        secondaryLabel = "Date AAAA-MM-JJ", thirdLabel = "Notes", secondaryDefault = selected.toString(),
+    ) { title, date, notes ->
+        scope.launch { runCatching { state.api.createAgendaEvent(token, title, date, notes) }.onSuccess { addingEvent = false; state.notify("Événement ajouté"); load() }.onFailure(state::handle) }
     }
 }
 
@@ -661,7 +725,7 @@ private fun todoGroups(rows: List<Todo>): List<Pair<String, List<Todo>>> {
 }
 
 @Composable
-private fun TodoActionCard(todo: Todo, toggle: () -> Unit, delete: () -> Unit) {
+private fun TodoActionCard(todo: Todo, toggle: () -> Unit, edit: () -> Unit, delete: () -> Unit) {
     val today = LocalDate.now().toString()
     val done = todo.status == "done"
     val late = !done && todo.dueAt.isNotBlank() && todo.dueAt < today
@@ -684,6 +748,7 @@ private fun TodoActionCard(todo: Todo, toggle: () -> Unit, delete: () -> Unit) {
                 style = MaterialTheme.typography.labelMedium,
             )
         }
+        IconButton(onClick = edit) { Icon(Icons.Rounded.Edit, "Modifier", tint = Muted, modifier = Modifier.size(18.dp)) }
         IconButton(onClick = delete) { Icon(Icons.Rounded.Delete, "Supprimer", tint = Muted, modifier = Modifier.size(18.dp)) }
     }
 }
@@ -718,11 +783,14 @@ private fun SimpleCreateDialog(
     secondaryLabel: String? = null,
     thirdLabel: String? = null,
     secondaryDefault: String = "",
+    primaryDefault: String = "",
+    thirdDefault: String = "",
+    saveLabel: String = "Enregistrer",
     save: (String, String, String) -> Unit,
 ) {
-    var primary by remember { mutableStateOf("") }
+    var primary by remember { mutableStateOf(primaryDefault) }
     var secondary by remember { mutableStateOf(secondaryDefault) }
-    var third by remember { mutableStateOf("") }
+    var third by remember { mutableStateOf(thirdDefault) }
     ModalBottomSheet(
         onDismissRequest = dismiss,
         containerColor = ReadingPaper,
@@ -738,7 +806,7 @@ private fun SimpleCreateDialog(
             secondaryLabel?.let { OpusculeField(secondary, { value -> secondary = value }, it) }
             thirdLabel?.let { OpusculeField(third, { value -> third = value }, it, minLines = 2) }
             PrimaryButton(
-                "Enregistrer",
+                saveLabel,
                 { save(primary.trim(), secondary.trim(), third.trim()) },
                 Modifier.fillMaxWidth(),
                 primary.isNotBlank(),

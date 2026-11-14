@@ -14,7 +14,7 @@ android {
         targetSdk = 35
         versionCode = 17
         versionName = "1.6.1"
-        buildConfigField("String", "API_BASE_URL", "\"https://philoweek-production.up.railway.app/api\"")
+        buildConfigField("String", "API_BASE_URL", "\"https://opuscule-production.up.railway.app/api\"")
     }
 
     buildTypes {
