@@ -191,6 +191,9 @@ data class Agenda(
 
 data class DailyReminderSummary(val openTodoCount: Int, val missingHabitCount: Int)
 
+data class DayTemplateSegment(val id: String, val name: String, val minutes: Int, val color: String)
+data class DayTemplate(val id: String, val title: String, val segments: List<DayTemplateSegment>)
+
 data class UsageDay(val date: String, val seconds: Int)
 data class UsageMonth(val month: String, val seconds: Int, val activeDays: Int)
 

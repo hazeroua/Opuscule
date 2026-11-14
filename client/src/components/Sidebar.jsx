@@ -115,6 +115,7 @@ export default function Sidebar() {
     { icon: 'quote', label: 'Citations', active: view === 'life', action: () => dispatch({ type: 'SET_VIEW', payload: 'life' }) },
     { icon: 'listCheck', label: 'Tâches', active: view === 'todos', action: () => dispatch({ type: 'SET_VIEW', payload: 'todos' }) },
     { icon: 'calendar', label: 'Agenda', active: view === 'agenda', action: () => dispatch({ type: 'SET_VIEW', payload: 'agenda' }) },
+    { icon: 'clock', label: 'Journées types', active: view === 'day-templates', action: () => dispatch({ type: 'SET_VIEW', payload: 'day-templates' }) },
     { icon: 'life', label: 'Vie perso', active: view === 'life-grid', action: () => dispatch({ type: 'SET_VIEW', payload: 'life-grid' }) },
     { icon: 'timer', label: 'Focus', active: view === 'timer', action: () => dispatch({ type: 'SET_VIEW', payload: 'timer' }) },
     { icon: 'database', label: 'Base de liens', active: view === 'knowledge-graph', action: () => dispatch({ type: 'SET_VIEW', payload: 'knowledge-graph' }) },

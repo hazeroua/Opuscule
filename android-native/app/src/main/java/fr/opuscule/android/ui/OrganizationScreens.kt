@@ -83,8 +83,11 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.opuscule.android.AppState
+import fr.opuscule.android.DailyReminderScheduler
 import fr.opuscule.android.data.Agenda
 import fr.opuscule.android.data.AgendaEvent
+import fr.opuscule.android.data.DayTemplate
+import fr.opuscule.android.data.DayTemplateSegment
 import fr.opuscule.android.data.FactCheck
 import fr.opuscule.android.data.Idea
 import fr.opuscule.android.data.Practice
@@ -102,7 +105,7 @@ import java.util.Locale
 import kotlin.math.max
 
 enum class OrganizationSection {
-    IDEAS, QUOTES, FACTS, TODOS, AGENDA, LIFE, USAGE, ELOCUTION
+    IDEAS, QUOTES, FACTS, TODOS, AGENDA, DAY_TEMPLATES, LIFE, USAGE, ELOCUTION
 }
 
 @Composable
@@ -132,6 +135,7 @@ fun OrganizationScreen(
             OrganizationSection.FACTS -> FactsScreen(state) { section = null }
             OrganizationSection.TODOS -> TodosScreen(state) { section = null }
             OrganizationSection.AGENDA -> AgendaScreen(state) { section = null }
+            OrganizationSection.DAY_TEMPLATES -> DayTemplatesScreen(state) { section = null }
             OrganizationSection.LIFE -> LifeScreen(state) { section = null }
             OrganizationSection.USAGE -> UsageScreen(state) { section = null }
             OrganizationSection.ELOCUTION -> ElocutionScreen(state) { section = null }
@@ -163,6 +167,8 @@ fun OrganizationScreen(
             ActionRow("Tâches", "Échéances et suivi", Icons.Rounded.Checklist, { section = OrganizationSection.TODOS }, accent = Coral, accentSoft = CoralSoft)
             HorizontalDivider(color = Divider)
             ActionRow("Agenda & habitudes", "Calendrier et régularité", Icons.Rounded.CalendarMonth, { section = OrganizationSection.AGENDA }, accent = Opuscule, accentSoft = OpusculeSoft)
+            HorizontalDivider(color = Divider)
+            ActionRow("Journées types", "Cercles personnalisés de 24 heures", Icons.Rounded.Schedule, { section = OrganizationSection.DAY_TEMPLATES }, accent = Amber, accentSoft = AmberSoft)
             Spacer(Modifier.height(22.dp))
             SectionLabel("Prendre du recul")
             ActionRow("Vie en semaines", "Visualiser le temps vécu", Icons.Rounded.FavoriteBorder, { section = OrganizationSection.LIFE }, accent = Coral, accentSoft = CoralSoft)
@@ -991,5 +997,67 @@ private fun formatDuration(seconds: Int): String {
         hours > 0 -> "${hours}h ${minutes.toString().padStart(2, '0')}"
         minutes > 0 -> "${minutes} min"
         else -> "${seconds} s"
+    }
+}
+
+@Composable
+private fun DayTemplatesScreen(state: AppState, back: () -> Unit) {
+    val token = state.token ?: return
+    var rows by remember { mutableStateOf<List<DayTemplate>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var editing by remember { mutableStateOf<DayTemplate?>(null) }
+    var title by remember { mutableStateOf("") }
+    var segments by remember { mutableStateOf<List<DayTemplateSegment>>(emptyList()) }
+    val scope = rememberCoroutineScope()
+    fun load() = scope.launch { loading = true; runCatching { state.api.dayTemplates(token) }.onSuccess { rows = it }.onFailure(state::handle); loading = false }
+    fun choose(template: DayTemplate) = scope.launch { runCatching { state.api.setTodayDayTemplate(token, template.id) }.onSuccess { DailyReminderScheduler.schedule(state.getApplication()); state.notify("${template.title} choisi pour aujourd’hui") }.onFailure(state::handle) }
+    fun start(template: DayTemplate?) { editing = template; title = template?.title ?: "Ma journée type"; segments = template?.segments ?: listOf(DayTemplateSegment("sleep", "Sommeil", 480, "#5B6AA8"), DayTemplateSegment("work", "Travail", 480, "#D9895B"), DayTemplateSegment("free", "Temps libre", 480, "#8EAE8D")) }
+    LaunchedEffect(Unit) { load() }
+    if (editing != null) {
+        DayTemplateEditor(title, segments, { title = it }, { segments = it }, { editing = null }, {
+            scope.launch { runCatching { if (editing?.id == null) state.api.createDayTemplate(token, title, segments) else state.api.updateDayTemplate(token, editing!!, title, segments) }.onSuccess { editing = null; DailyReminderScheduler.schedule(state.getApplication()); state.notify("Journée type enregistrée"); load() }.onFailure(state::handle) }
+        })
+        return
+    }
+    CollectionScaffold("Journées types", back, { start(null) }) {
+        when { loading -> LoadingPane(); rows.isEmpty() -> EmptyPane("Aucune journée type", "Dessinez votre rythme de sommeil, travail et repos.", Icons.Rounded.Schedule, "Créer") { start(null) }; else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) { items(rows, key = { it.id }) { template -> DayTemplateCard(template, { start(template) }, { choose(template) }) } } }
+    }
+}
+
+@Composable
+private fun DayTemplateCard(template: DayTemplate, open: () -> Unit, choose: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Surface).clickable { open() }.padding(18.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(template.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("24 h", color = Opuscule, fontWeight = FontWeight.Bold) }
+        DayTemplateWheel(template.segments, Modifier.fillMaxWidth().padding(vertical = 10.dp))
+        Text(template.segments.joinToString("  •  ") { "${it.name} ${it.minutes / 60}h${if (it.minutes % 60 > 0) " ${it.minutes % 60}m" else ""}" }, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        TextButton(choose) { Text("Choisir pour aujourd’hui") }
+    }
+}
+
+@Composable
+private fun DayTemplateWheel(segments: List<DayTemplateSegment>, modifier: Modifier = Modifier) {
+    val surfaceColor = Surface
+    Canvas(modifier.aspectRatio(1f).padding(12.dp)) { var start = -90f; segments.forEach { segment -> val sweep = segment.minutes / 1440f * 360f; drawArc(Color(android.graphics.Color.parseColor(segment.color)), start, sweep, false, style = androidx.compose.ui.graphics.drawscope.Stroke(38.dp.toPx())); start += sweep }; drawCircle(surfaceColor, radius = size.minDimension * .27f) }
+}
+
+@Composable
+private fun DayTemplateEditor(title: String, segments: List<DayTemplateSegment>, setTitle: (String) -> Unit, setSegments: (List<DayTemplateSegment>) -> Unit, back: () -> Unit, save: () -> Unit) {
+    val total = segments.sumOf { it.minutes }
+    CollectionScaffold("Modifier le cercle", back, save) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
+            DayTemplateWheel(segments, Modifier.fillMaxWidth().padding(bottom = 12.dp))
+            OutlinedTextField(title, setTitle, Modifier.fillMaxWidth(), label = { Text("Nom du cercle") }, singleLine = true)
+            Text("${total / 60} h ${total % 60} min / 24 h", color = if (total == 1440) Success else Warning, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 12.dp))
+            segments.forEachIndexed { index, segment ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(segment.name, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(name = value) else item }) }, Modifier.weight(1f), label = { Text("Temps") }, singleLine = true)
+                    OutlinedTextField(segment.minutes.toString(), { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(minutes = value.toIntOrNull()?.coerceAtLeast(1) ?: item.minutes) else item }) }, Modifier.width(92.dp), label = { Text("min") }, singleLine = true)
+                    IconButton({ setSegments(segments.filterIndexed { i, _ -> i != index }) }) { Icon(Icons.Rounded.Delete, "Supprimer", tint = Danger) }
+                }
+            }
+            TextButton({ setSegments(segments + DayTemplateSegment("segment-${segments.size + 1}", "Nouveau temps", 60, "#7C8CFF")) }) { Text("+ Ajouter un temps") }
+            if (total != 1440) Text("Le cercle doit couvrir exactement 1 440 minutes.", color = Warning)
+            Spacer(Modifier.height(24.dp)); PrimaryButton("Enregistrer", save, Modifier.fillMaxWidth(), total == 1440 && title.isNotBlank() && segments.all { it.name.isNotBlank() })
+        }
     }
 }

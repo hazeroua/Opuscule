@@ -684,6 +684,28 @@ const MIGRATIONS = [
         ON agenda_events(user_id, source_uid) WHERE source_uid IS NOT NULL;
     `)
   },
+  // v22 -> v23 : journées types circulaires de 24 heures.
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS day_templates (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        segments_json TEXT NOT NULL DEFAULT '[]',
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_day_templates_user ON day_templates(user_id, updated_at DESC);
+      CREATE TABLE IF NOT EXISTS day_template_assignments (
+        entry_date TEXT NOT NULL,
+        template_id TEXT NOT NULL REFERENCES day_templates(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (entry_date, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_day_template_assignments_user ON day_template_assignments(user_id, entry_date);
+    `)
+  },
 ]
 
 // Ajoute une colonne seulement si elle n'existe pas déjà (SQLite ne

@@ -21,6 +21,7 @@ import PublicArticle from './components/PublicArticle'
 import Tutorial from './components/Tutorial'
 import SecurityPage from './components/SecurityPage'
 import MobileCapturePage from './components/MobileCapturePage'
+import DayTemplates from './components/DayTemplates'
 import Trash from './components/Trash'
 import FilePicker from './components/FilePicker'
 import GlobalQuizLauncher from './components/GlobalQuizLauncher'
@@ -155,6 +156,8 @@ function AppShell() {
           <RequiredChanges />
         ) : view === 'mobile-capture' ? (
           <MobileCapturePage />
+        ) : view === 'day-templates' ? (
+          <DayTemplates />
         ) : view === 'trash' ? (
           <Trash />
         ) : currentFile ? (
@@ -346,6 +349,7 @@ const VIEW_TABS = {
   security: { label: 'Sécurité', icon: 'shield' },
   'required-changes': { label: 'À modifier', icon: 'edit' },
   'mobile-capture': { label: 'Capturer', icon: 'idea' },
+  'day-templates': { label: 'Journées types', icon: 'clock' },
   trash: { label: 'Corbeille', icon: 'trash' },
 }
 

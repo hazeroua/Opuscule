@@ -15,6 +15,7 @@ const VIEW_SLUGS = {
   security: 'securite',
   'required-changes': 'a-modifier',
   'mobile-capture': 'capturer',
+  'day-templates': 'journees-types',
   trash: 'corbeille',
 }
 

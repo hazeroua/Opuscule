@@ -183,6 +183,24 @@ router.all('/obsidian', async (req, res) => {
     }, null, 2))
   }
 
+  const dayTemplates = db.prepare('SELECT id, title, segments_json, created_at, updated_at FROM day_templates WHERE user_id = ? ORDER BY created_at ASC').all(req.user.id)
+  if (dayTemplates.length > 0) {
+    const dayTemplateAssignments = db.prepare('SELECT entry_date, template_id, updated_at FROM day_template_assignments WHERE user_id = ? ORDER BY entry_date ASC').all(req.user.id)
+    zip.file('_Opuscule/DayTemplates.json', JSON.stringify({
+      philoweek_type: 'day_templates',
+      version: 1,
+      exported: new Date().toISOString(),
+      templates: dayTemplates.map(template => ({
+        id: template.id,
+        title: template.title,
+        segments: JSON.parse(template.segments_json || '[]'),
+        created_at: template.created_at,
+        updated_at: template.updated_at,
+      })),
+      assignments: dayTemplateAssignments,
+    }, null, 2))
+  }
+
   const questionnaireResults = db.prepare('SELECT * FROM questionnaire_results WHERE user_id = ? ORDER BY created_at DESC').all(req.user.id)
   if (questionnaireResults.length > 0) {
     zip.file('_Opuscule/QuestionnaireResults.json', JSON.stringify({

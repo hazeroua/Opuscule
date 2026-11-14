@@ -430,6 +430,23 @@ Contenu Markdown avec [[liens-wiki]] et #tags inline...
 - Une question de questionnaire peut etre supprimee de son fichier JSON depuis la carte apres confirmation. Sur mobile, la suppression reste une icone compacte et le bouton `A revoir` utilise le rouge d'erreur plein.
 - Le theme clair est la valeur par defaut du client web et des articles publics tant que l'utilisateur n'a pas memorise un autre choix dans `pw-theme`.
 
+## Journées types de 24 heures
+
+- `Journées types` permet de créer autant de cercles que nécessaire (semaine,
+  weekend, journée épuisée, etc.). Chaque cercle possède un nom libre et des
+  segments nommés avec une couleur définie par l'utilisateur; la somme doit
+  toujours couvrir exactement 1 440 minutes.
+- Les modèles sont stockés dans `day_templates` et leur choix pour une date
+  dans `day_template_assignments`. Les routes `/api/day-templates` sont
+  utilisées par le web et Android, avec filtrage obligatoire par `user_id`.
+- Le ZIP Obsidian exporte et importe `_Opuscule/DayTemplates.json`, y compris
+  les affectations par date, afin de conserver les rythmes entre versions.
+- Le web affiche un anneau SVG accessible et permet de modifier le nom, les
+  durées, les couleurs, les segments et le cercle choisi pour aujourd'hui.
+  Android expose la même gestion en natif avec un anneau Compose; lorsqu'un
+  cercle est affecté à aujourd'hui, Android programme une notification locale
+  au prochain changement d'activité.
+
 ## Déplacement des fichiers et dossiers
 
 - Dans la sidebar, un fichier ou un dossier peut être déplacé par glisser-déposer vers un autre dossier.

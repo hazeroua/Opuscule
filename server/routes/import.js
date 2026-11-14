@@ -143,6 +143,13 @@ router.post('/obsidian', upload.single('vault'), async (req, res) => {
           all_day, source_uid, user_id, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
+      const insertDayTemplate = db.prepare(
+        `INSERT OR REPLACE INTO day_templates (id, title, segments_json, user_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      const insertDayTemplateAssignment = db.prepare(
+        `INSERT OR REPLACE INTO day_template_assignments (entry_date, template_id, user_id, updated_at) VALUES (?, ?, ?, ?)`
+      )
       const upsertLifeProfile = db.prepare(
         `INSERT INTO life_profiles (user_id, birth_date, life_expectancy_years, updated_at)
          VALUES (?, ?, ?, ?)
@@ -491,6 +498,33 @@ router.post('/obsidian', upload.single('vault'), async (req, res) => {
                 jsonSpecial.life_profile.updated_at || now
               )
               report.imported++
+            }
+            continue
+          }
+
+          if (jsonSpecial?.philoweek_type === 'day_templates') {
+            const now = new Date().toISOString()
+            const importedTemplateIds = new Set()
+            for (const template of Array.isArray(jsonSpecial.templates) ? jsonSpecial.templates : []) {
+              const title = String(template.title || '').trim().slice(0, 120)
+              const segments = Array.isArray(template.segments) ? template.segments.map((segment, index) => ({
+                id: String(segment?.id || `segment-${index + 1}`).slice(0, 80),
+                name: String(segment?.name || '').trim().slice(0, 80),
+                minutes: Math.round(Number(segment?.minutes)),
+                color: /^#[0-9a-f]{6}$/i.test(String(segment?.color || '')) ? String(segment.color).toUpperCase() : '#6B8AFD',
+              })) : []
+              if (!title || !segments.length || segments.some(segment => !segment.name || segment.minutes < 1) || segments.reduce((sum, segment) => sum + segment.minutes, 0) !== 1440) continue
+              const templateId = template.id || uuidv4()
+              insertDayTemplate.run(
+                templateId, title, JSON.stringify(segments), req.user.id,
+                normalizeIsoDate(template.created_at) || now, normalizeIsoDate(template.updated_at) || now
+              )
+              importedTemplateIds.add(templateId)
+              report.imported++
+            }
+            for (const assignment of Array.isArray(jsonSpecial.assignments) ? jsonSpecial.assignments : []) {
+              const date = normalizeDueDate(assignment.entry_date)
+              if (date && importedTemplateIds.has(assignment.template_id)) insertDayTemplateAssignment.run(date, assignment.template_id, req.user.id, normalizeIsoDate(assignment.updated_at) || now)
             }
             continue
           }

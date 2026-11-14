@@ -16,8 +16,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import java.time.LocalTime
 
 private const val REMINDER_ACTION = "fr.opuscule.android.DAILY_REMINDER"
+private const val DAY_CHANGE_ACTION = "fr.opuscule.android.DAY_CHANGE"
 private const val REMINDER_CHANNEL = "daily-agenda-reminders"
 private const val REMINDER_ID = 2048
 
@@ -45,6 +47,21 @@ object DailyReminderScheduler {
             AlarmManager.INTERVAL_DAY,
             pending,
         )
+        scheduleNextActivity(context)
+    }
+
+    private fun scheduleNextActivity(context: Context) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val template = SecureTokenStore(context).load()?.let { runCatching { ApiClient().todayDayTemplate(it) }.getOrNull() } ?: return@launch
+            val now = LocalTime.now().toSecondOfDay() / 60
+            var elapsed = 0
+            val next = template.segments.firstOrNull { segment -> elapsed += segment.minutes; elapsed > now } ?: template.segments.firstOrNull() ?: return@launch
+            val minutesUntil = if (elapsed > now) elapsed - now else 1440 - now
+            val alarm = context.getSystemService(AlarmManager::class.java) ?: return@launch
+            val intent = Intent(context, DailyReminderReceiver::class.java).setAction(DAY_CHANGE_ACTION).putExtra("activity", next.name).putExtra("template", template.title)
+            val pending = PendingIntent.getBroadcast(context, 2049, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            alarm.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + minutesUntil * 60_000L, pending)
+        }
     }
 
     private fun createChannel(context: Context) {
@@ -61,8 +78,12 @@ object DailyReminderScheduler {
 
 class DailyReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action != REMINDER_ACTION && intent?.action != Intent.ACTION_BOOT_COMPLETED) return
+        if (intent?.action != REMINDER_ACTION && intent?.action != DAY_CHANGE_ACTION && intent?.action != Intent.ACTION_BOOT_COMPLETED) return
         DailyReminderScheduler.schedule(context)
+        if (intent?.action == DAY_CHANGE_ACTION) {
+            createDayChangeNotification(context, intent.getStringExtra("activity").orEmpty(), intent.getStringExtra("template").orEmpty())
+            return
+        }
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -86,5 +107,14 @@ class DailyReminderReceiver : BroadcastReceiver() {
                 pendingResult.finish()
             }
         }
+    }
+
+    private fun createDayChangeNotification(context: Context, activity: String, template: String) {
+        val notification = NotificationCompat.Builder(context, REMINDER_CHANNEL)
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentTitle("Changement d’activité")
+            .setContentText("Journée « $template » · $activity")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT).setAutoCancel(true).build()
+        NotificationManagerCompat.from(context).notify(2049, notification)
     }
 }

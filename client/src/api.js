@@ -186,6 +186,13 @@ export const deleteAgendaEvent = id => req('DELETE', `/todos/events/${id}`)
 export const importAgendaIcs = content => req('POST', '/todos/events/import-ics', { content })
 export const exportAgendaIcs = () => { window.location.href = `${BASE}/todos/events/export-ics` }
 export const updateLifeProfile = data => req('PUT', '/todos/life-profile', data)
+// Journées types de 24 h
+export const getDayTemplates = () => req('GET', '/day-templates')
+export const createDayTemplate = data => req('POST', '/day-templates', data)
+export const updateDayTemplate = (id, data) => req('PUT', `/day-templates/${id}`, data)
+export const deleteDayTemplate = id => req('DELETE', `/day-templates/${id}`)
+export const getDayTemplateAssignment = date => req('GET', `/day-templates/assignment/today?date=${encodeURIComponent(date)}`)
+export const setDayTemplateAssignment = (date, template_id) => req('PUT', '/day-templates/assignment/today', { date, template_id })
 // Questionnaires
 export const getQuestionnaireSession = data => req('POST', '/questionnaires/session', data)
 export const getRequiredChanges = () => req('GET', '/questionnaires/required-changes')

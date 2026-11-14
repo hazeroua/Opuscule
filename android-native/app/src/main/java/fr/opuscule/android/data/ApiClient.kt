@@ -673,6 +673,36 @@ class ApiClient {
             .put("birth_date", birthDate).put("life_expectancy_years", years), token)
     }
 
+    suspend fun dayTemplates(token: String): List<DayTemplate> =
+        callArray("/day-templates", token = token).objects().map { row ->
+            DayTemplate(row.getString("id"), row.optString("title"), row.optJSONArray("segments").orEmpty().objects().map { segment ->
+                DayTemplateSegment(segment.optString("id"), segment.optString("name"), segment.optInt("minutes"), segment.optString("color", "#6B8AFD"))
+            })
+        }
+
+    private fun dayTemplatePayload(title: String, segments: List<DayTemplateSegment>) = JSONObject()
+        .put("title", title)
+        .put("segments", JSONArray().apply { segments.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("minutes", it.minutes).put("color", it.color)) } })
+
+    suspend fun createDayTemplate(token: String, title: String, segments: List<DayTemplateSegment>) {
+        call("/day-templates", "POST", dayTemplatePayload(title, segments), token)
+    }
+
+    suspend fun updateDayTemplate(token: String, template: DayTemplate, title: String, segments: List<DayTemplateSegment>) {
+        call("/day-templates/${template.id}", "PUT", dayTemplatePayload(title, segments), token)
+    }
+
+    suspend fun deleteDayTemplate(token: String, id: String) {
+        call("/day-templates/$id", "DELETE", token = token)
+    }
+
+    suspend fun todayDayTemplate(token: String): DayTemplate? = call("/day-templates/assignment/today", token = token)
+        .optJSONObject("template")?.let { row -> DayTemplate(row.getString("id"), row.optString("title"), row.optJSONArray("segments").orEmpty().objects().map { segment -> DayTemplateSegment(segment.optString("id"), segment.optString("name"), segment.optInt("minutes"), segment.optString("color", "#6B8AFD")) }) }
+
+    suspend fun setTodayDayTemplate(token: String, id: String) {
+        call("/day-templates/assignment/today", "PUT", JSONObject().put("date", LocalDate.now().toString()).put("template_id", id), token)
+    }
+
     suspend fun usage(token: String): UsageSummary {
         val json = call("/timer/app-usage", token = token)
         return UsageSummary(
