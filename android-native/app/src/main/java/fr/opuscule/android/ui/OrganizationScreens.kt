@@ -1006,16 +1006,17 @@ private fun DayTemplatesScreen(state: AppState, back: () -> Unit) {
     var rows by remember { mutableStateOf<List<DayTemplate>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var editing by remember { mutableStateOf<DayTemplate?>(null) }
+    var editorOpen by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf("") }
     var segments by remember { mutableStateOf<List<DayTemplateSegment>>(emptyList()) }
     val scope = rememberCoroutineScope()
     fun load() = scope.launch { loading = true; runCatching { state.api.dayTemplates(token) }.onSuccess { rows = it }.onFailure(state::handle); loading = false }
     fun choose(template: DayTemplate) = scope.launch { runCatching { state.api.setTodayDayTemplate(token, template.id) }.onSuccess { DailyReminderScheduler.schedule(state.getApplication()); state.notify("${template.title} choisi pour aujourd’hui") }.onFailure(state::handle) }
-    fun start(template: DayTemplate?) { editing = template; title = template?.title ?: "Ma journée type"; segments = template?.segments ?: listOf(DayTemplateSegment("sleep", "Sommeil", 480, "#5B6AA8"), DayTemplateSegment("work", "Travail", 480, "#D9895B"), DayTemplateSegment("free", "Temps libre", 480, "#8EAE8D")) }
+    fun start(template: DayTemplate?) { editing = template; editorOpen = true; title = template?.title ?: "Ma journée type"; segments = template?.segments ?: listOf(DayTemplateSegment("sleep", "Sommeil", 480, "#5B6AA8"), DayTemplateSegment("work", "Travail", 480, "#D9895B"), DayTemplateSegment("free", "Temps libre", 480, "#8EAE8D")) }
     LaunchedEffect(Unit) { load() }
-    if (editing != null) {
-        DayTemplateEditor(title, segments, { title = it }, { segments = it }, { editing = null }, {
-            scope.launch { runCatching { if (editing?.id == null) state.api.createDayTemplate(token, title, segments) else state.api.updateDayTemplate(token, editing!!, title, segments) }.onSuccess { editing = null; DailyReminderScheduler.schedule(state.getApplication()); state.notify("Journée type enregistrée"); load() }.onFailure(state::handle) }
+    if (editorOpen) {
+        DayTemplateEditor(title, segments, { title = it }, { segments = it }, { editorOpen = false; editing = null }, {
+            scope.launch { runCatching { if (editing?.id == null) state.api.createDayTemplate(token, title, segments) else state.api.updateDayTemplate(token, editing!!, title, segments) }.onSuccess { editorOpen = false; editing = null; DailyReminderScheduler.schedule(state.getApplication()); state.notify("Journée type enregistrée"); load() }.onFailure(state::handle) }
         })
         return
     }
