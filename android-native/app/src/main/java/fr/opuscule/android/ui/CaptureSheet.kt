@@ -8,11 +8,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
@@ -104,7 +107,7 @@ fun QuickCaptureSheet(state: AppState, dismiss: () -> Unit) {
         },
     ) {
         Column(
-            Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 20.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text("Capturer", style = MaterialTheme.typography.headlineMedium)
@@ -269,10 +272,11 @@ fun OpusculeField(
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.fillMaxWidth().background(Surface, RoundedCornerShape(16.dp)).padding(16.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = if (minLines > 1) 92.dp else 52.dp, max = if (minLines > 1) 190.dp else 70.dp).then(if (minLines > 1) Modifier.verticalScroll(rememberScrollState()) else Modifier).background(Surface, RoundedCornerShape(16.dp)).padding(16.dp),
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink),
         cursorBrush = SolidColor(Opuscule),
         minLines = minLines,
+        maxLines = if (minLines > 1) 12 else 1,
         keyboardOptions = KeyboardOptions(imeAction = if (minLines > 1) ImeAction.Default else ImeAction.Next),
         decorationBox = { inner ->
             if (value.isEmpty()) Text(placeholder, color = Muted, style = MaterialTheme.typography.bodyLarge)
