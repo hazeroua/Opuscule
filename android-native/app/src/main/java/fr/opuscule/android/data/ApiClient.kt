@@ -627,6 +627,12 @@ class ApiClient {
             .put("all_day", true).put("notes", notes), token)
     }
 
+    suspend fun updateAgendaEvent(token: String, event: AgendaEvent, title: String, date: String, notes: String) {
+        call("/todos/events/${event.id}", "PUT", JSONObject()
+            .put("title", title).put("start_date", date).put("end_date", date)
+            .put("all_day", true).put("notes", notes), token)
+    }
+
     suspend fun updateTodo(token: String, todo: Todo, title: String, dueAt: String, notes: String) {
         call("/todos/${todo.id}", "PUT", JSONObject()
             .put("title", title).put("due_at", dueAt).put("notes", notes)

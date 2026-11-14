@@ -389,6 +389,7 @@ private fun AgendaScreen(state: AppState, back: () -> Unit) {
     var editingPractice by remember { mutableStateOf<Practice?>(null) }
     var deletingPractice by remember { mutableStateOf<Practice?>(null) }
     var deletingEvent by remember { mutableStateOf<AgendaEvent?>(null) }
+    var editingEvent by remember { mutableStateOf<AgendaEvent?>(null) }
     val scope = rememberCoroutineScope()
     fun load() = scope.launch {
         runCatching {
@@ -427,6 +428,7 @@ private fun AgendaScreen(state: AppState, back: () -> Unit) {
                             Text(event.title, style = MaterialTheme.typography.titleMedium)
                             event.notes?.takeIf(String::isNotBlank)?.let { Text(it, color = Muted, style = MaterialTheme.typography.bodySmall) }
                         }
+                        IconButton(onClick = { editingEvent = event }) { Icon(Icons.Rounded.Edit, "Modifier", tint = Muted) }
                         IconButton(onClick = { deletingEvent = event }) { Icon(Icons.Rounded.Delete, "Supprimer", tint = Muted) }
                     }
                 }
@@ -479,6 +481,16 @@ private fun AgendaScreen(state: AppState, back: () -> Unit) {
     deletingEvent?.let { event ->
         ConfirmDeleteDialog("Supprimer cet événement ?", "Il sera retiré de votre agenda.", { deletingEvent = null }) {
             scope.launch { runCatching { state.api.deleteAgendaEvent(token, event.id) }.onSuccess { deletingEvent = null; state.notify("Événement supprimé"); load() }.onFailure(state::handle) }
+        }
+    }
+    editingEvent?.let { event ->
+        SimpleCreateDialog(
+            "Modifier l’événement", "Titre", { editingEvent = null },
+            secondaryLabel = "Date AAAA-MM-JJ", thirdLabel = "Notes",
+            secondaryDefault = event.startDate, thirdDefault = event.notes.orEmpty(),
+            primaryDefault = event.title, saveLabel = "Enregistrer",
+        ) { title, date, notes ->
+            scope.launch { runCatching { state.api.updateAgendaEvent(token, event, title, date, notes) }.onSuccess { editingEvent = null; state.notify("Événement modifié"); load() }.onFailure(state::handle) }
         }
     }
     if (addingEvent) SimpleCreateDialog(
