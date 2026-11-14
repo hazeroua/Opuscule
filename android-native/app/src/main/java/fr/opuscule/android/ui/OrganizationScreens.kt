@@ -1037,7 +1037,8 @@ private fun DayTemplateCard(template: DayTemplate, open: () -> Unit, choose: () 
 @Composable
 private fun DayTemplateWheel(segments: List<DayTemplateSegment>, modifier: Modifier = Modifier) {
     val surfaceColor = Surface
-    Canvas(modifier.aspectRatio(1f).padding(12.dp)) { var start = -90f; segments.forEach { segment -> val sweep = segment.minutes / 1440f * 360f; drawArc(Color(android.graphics.Color.parseColor(segment.color)), start, sweep, false, style = androidx.compose.ui.graphics.drawscope.Stroke(38.dp.toPx())); start += sweep }; drawCircle(surfaceColor, radius = size.minDimension * .27f) }
+    val accentColor = Opuscule
+    Canvas(modifier.aspectRatio(1f).padding(12.dp)) { var start = -90f; segments.forEach { segment -> val sweep = segment.minutes / 1440f * 360f; val color = runCatching { Color(android.graphics.Color.parseColor(segment.color)) }.getOrDefault(accentColor); drawArc(color, start, sweep, false, style = androidx.compose.ui.graphics.drawscope.Stroke(38.dp.toPx())); start += sweep }; drawCircle(surfaceColor, radius = size.minDimension * .27f) }
 }
 
 @Composable
@@ -1052,12 +1053,13 @@ private fun DayTemplateEditor(title: String, segments: List<DayTemplateSegment>,
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(segment.name, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(name = value) else item }) }, Modifier.weight(1f), label = { Text("Temps") }, singleLine = true)
                     OutlinedTextField(segment.minutes.toString(), { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(minutes = value.toIntOrNull()?.coerceAtLeast(1) ?: item.minutes) else item }) }, Modifier.width(92.dp), label = { Text("min") }, singleLine = true)
+                    OutlinedTextField(segment.color, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(color = value) else item }) }, Modifier.width(104.dp), label = { Text("Couleur") }, singleLine = true)
                     IconButton({ setSegments(segments.filterIndexed { i, _ -> i != index }) }) { Icon(Icons.Rounded.Delete, "Supprimer", tint = Danger) }
                 }
             }
             TextButton({ setSegments(segments + DayTemplateSegment("segment-${segments.size + 1}", "Nouveau temps", 60, "#7C8CFF")) }) { Text("+ Ajouter un temps") }
             if (total != 1440) Text("Le cercle doit couvrir exactement 1 440 minutes.", color = Warning)
-            Spacer(Modifier.height(24.dp)); PrimaryButton("Enregistrer", save, Modifier.fillMaxWidth(), total == 1440 && title.isNotBlank() && segments.all { it.name.isNotBlank() })
+            Spacer(Modifier.height(24.dp)); PrimaryButton("Enregistrer", save, Modifier.fillMaxWidth(), total == 1440 && title.isNotBlank() && segments.all { it.name.isNotBlank() && Regex("^#[0-9a-fA-F]{6}$").matches(it.color) })
         }
     }
 }
