@@ -47,6 +47,7 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -143,12 +144,24 @@ fun OrganizationScreen(
         }
         return
     }
+    var searchQuery by remember { mutableStateOf("") }
+    val matches: (String) -> Boolean = { label -> searchQuery.isBlank() || label.contains(searchQuery, ignoreCase = true) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenHeader(
-            "Vous",
-            subtitle = "Vos idées, vos projets et votre progression",
+            "Plus",
+            subtitle = "Tout ce qui vous aide à penser, organiser et progresser",
         )
         Column(Modifier.padding(horizontal = 20.dp)) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                placeholder = { Text("Rechercher une fonction") },
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Rounded.Search, null, tint = Muted) },
+                shape = RoundedCornerShape(15.dp),
+            )
+            if (searchQuery.isBlank()) {
             SectionLabel("Votre espace")
             ActionRow(
                 state.user?.username.orEmpty(),
@@ -178,6 +191,19 @@ fun OrganizationScreen(
             HorizontalDivider(color = Divider)
             ActionRow("Élocution", "Cours, enregistrements et résultats", Icons.Rounded.GraphicEq, { section = OrganizationSection.ELOCUTION }, accent = Opuscule, accentSoft = OpusculeSoft)
             Spacer(Modifier.height(26.dp))
+            } else {
+                SectionLabel("Résultats")
+                if (matches("Idées")) ActionRow("Idées", "Pensées rapides à reprendre", Icons.Rounded.Lightbulb, { section = OrganizationSection.IDEAS })
+                if (matches("Citations")) ActionRow("Citations", "Textes, auteurs et sources", Icons.AutoMirrored.Rounded.MenuBook, { section = OrganizationSection.QUOTES })
+                if (matches("Fact checks")) ActionRow("Fact checks", "Affirmations à vérifier", Icons.Rounded.Verified, { section = OrganizationSection.FACTS })
+                if (matches("Tâches")) ActionRow("Tâches", "Échéances et suivi", Icons.Rounded.Checklist, { section = OrganizationSection.TODOS })
+                if (matches("Agenda")) ActionRow("Agenda & habitudes", "Calendrier et régularité", Icons.Rounded.CalendarMonth, { section = OrganizationSection.AGENDA })
+                if (matches("Journées")) ActionRow("Journées types", "Cercles personnalisés de 24 heures", Icons.Rounded.Schedule, { section = OrganizationSection.DAY_TEMPLATES })
+                if (matches("Vie")) ActionRow("Vie en semaines", "Visualiser le temps vécu", Icons.Rounded.FavoriteBorder, { section = OrganizationSection.LIFE })
+                if (matches("Statistiques")) ActionRow("Statistiques", "Temps passé dans Opuscule", Icons.Rounded.BarChart, { section = OrganizationSection.USAGE })
+                if (matches("Élocution")) ActionRow("Élocution", "Cours, enregistrements et résultats", Icons.Rounded.GraphicEq, { section = OrganizationSection.ELOCUTION })
+                if (listOf("Idées", "Citations", "Fact checks", "Tâches", "Agenda", "Journées", "Vie", "Statistiques", "Élocution").none { matches(it) }) Text("Aucune fonction trouvée.", color = Muted, modifier = Modifier.padding(vertical = 24.dp))
+            }
         }
     }
 }
