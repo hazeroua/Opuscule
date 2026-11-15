@@ -125,6 +125,7 @@ fun ReviewScreen(state: AppState, openSource: (String) -> Unit, onImmersiveChang
                 else {
                     lastIds = ids
                     lastKinds = kinds
+                    revisionMode = revision
                     session = filtered
                     index = 0
                     revealed = revision
