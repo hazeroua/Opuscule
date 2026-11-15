@@ -1053,6 +1053,10 @@ private fun templateSegmentDuration(segment: DayTemplateSegment): Int {
     return if (value == 0) 1440 else value
 }
 
+private val dayTemplatePalette = listOf(
+    "#5B6AA8", "#D9895B", "#8EAE8D", "#C3A65B", "#7C8CFF", "#C56B9B", "#4D9B9B", "#A66A4C",
+)
+
 @Composable
 private fun DayTemplateEditor(title: String, segments: List<DayTemplateSegment>, setTitle: (String) -> Unit, setSegments: (List<DayTemplateSegment>) -> Unit, back: () -> Unit, save: () -> Unit) {
     val total = segments.sumOf(::templateSegmentDuration)
@@ -1062,12 +1066,24 @@ private fun DayTemplateEditor(title: String, segments: List<DayTemplateSegment>,
             OutlinedTextField(title, setTitle, Modifier.fillMaxWidth(), label = { Text("Nom du cercle") }, singleLine = true)
             Text("${total / 60} h ${total % 60} min / 24 h", color = if (total == 1440) Success else Warning, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 12.dp))
             segments.forEachIndexed { index, segment ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(segment.name, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(name = value) else item }) }, Modifier.weight(1f), label = { Text("Temps") }, singleLine = true)
-                    OutlinedTextField(segment.startTime, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(startTime = value, minutes = templateSegmentDuration(item.copy(startTime = value))) else item }) }, Modifier.width(88.dp), label = { Text("De") }, singleLine = true)
-                    OutlinedTextField(segment.endTime, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(endTime = value, minutes = templateSegmentDuration(item.copy(endTime = value))) else item }) }, Modifier.width(88.dp), label = { Text("À") }, singleLine = true)
-                    OutlinedTextField(segment.color, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(color = value) else item }) }, Modifier.width(104.dp), label = { Text("Couleur") }, singleLine = true)
-                    IconButton({ setSegments(segments.filterIndexed { i, _ -> i != index }) }) { Icon(Icons.Rounded.Delete, "Supprimer", tint = Danger) }
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Surface).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(segment.name, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(name = value) else item }) }, Modifier.weight(1f), label = { Text("Activité") }, singleLine = true)
+                        IconButton({ setSegments(segments.filterIndexed { i, _ -> i != index }) }) { Icon(Icons.Rounded.Delete, "Supprimer", tint = Danger) }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(segment.startTime, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(startTime = value, minutes = templateSegmentDuration(item.copy(startTime = value))) else item }) }, Modifier.weight(1f), label = { Text("De") }, singleLine = true)
+                        OutlinedTextField(segment.endTime, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(endTime = value, minutes = templateSegmentDuration(item.copy(endTime = value))) else item }) }, Modifier.weight(1f), label = { Text("À") }, singleLine = true)
+                    }
+                    Text("Couleur", color = Muted, style = MaterialTheme.typography.labelMedium)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        dayTemplatePalette.forEach { hex ->
+                            val selected = segment.color.equals(hex, ignoreCase = true)
+                            Box(Modifier.size(32.dp).clip(CircleShape).background(Color(android.graphics.Color.parseColor(hex))).clickable { setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(color = hex) else item }) }.then(if (selected) Modifier.padding(3.dp).background(ReadingPaper, CircleShape) else Modifier), contentAlignment = Alignment.Center) {
+                                if (selected) Box(Modifier.size(22.dp).clip(CircleShape).background(Color(android.graphics.Color.parseColor(hex))))
+                            }
+                        }
+                    }
                 }
             }
             TextButton({ setSegments(segments + DayTemplateSegment("segment-${segments.size + 1}", "Nouvelle activité", 60, "#7C8CFF", "00:00", "01:00")) }) { Text("+ Ajouter une activité") }
