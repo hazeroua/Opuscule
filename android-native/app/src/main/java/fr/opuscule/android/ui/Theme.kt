@@ -39,20 +39,20 @@ data class OpusculePalette(
 )
 
 private val LightPalette = OpusculePalette(
-    canvas = Color(0xFFF7F8FC),
-    surface = Color(0xFFEDF1F8),
-    surfacePressed = Color(0xFFE1E7F1),
+    canvas = Color(0xFFFFFFFF),
+    surface = Color(0xFFF7F7F8),
+    surfacePressed = Color(0xFFEDEAFB),
     readingPaper = Color(0xFFFFFFFF),
-    ink = Color(0xFF172033),
-    muted = Color(0xFF626D80),
-    divider = Color(0xFFD9E0EB),
-    accent = Color(0xFF1769FF),
-    accentSoft = Color(0xFFE7F0FF),
-    danger = Color(0xFFD83B53),
-    dangerSoft = Color(0xFFFFE8ED),
-    success = Color(0xFF16855B),
-    successSoft = Color(0xFFE2F5EB),
-    warning = Color(0xFFB86A0C),
+    ink = Color(0xFF111113),
+    muted = Color(0xFF6F6F75),
+    divider = Color(0xFFE8E8EC),
+    accent = Color(0xFF6750D8),
+    accentSoft = Color(0xFFEDE9FF),
+    danger = Color(0xFFD92D3A),
+    dangerSoft = Color(0xFFFFE7E9),
+    success = Color(0xFF1E7A4D),
+    successSoft = Color(0xFFE2F4E9),
+    warning = Color(0xFFB56A00),
 )
 
 private val DarkPalette = OpusculePalette(
