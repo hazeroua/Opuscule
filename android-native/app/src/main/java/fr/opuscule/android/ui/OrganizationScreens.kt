@@ -73,6 +73,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
@@ -1012,7 +1013,7 @@ private fun DayTemplatesScreen(state: AppState, back: () -> Unit) {
     val scope = rememberCoroutineScope()
     fun load() = scope.launch { loading = true; runCatching { state.api.dayTemplates(token) }.onSuccess { rows = it }.onFailure(state::handle); loading = false }
     fun choose(template: DayTemplate) = scope.launch { runCatching { state.api.setTodayDayTemplate(token, template.id) }.onSuccess { DailyReminderScheduler.schedule(state.getApplication()); state.notify("${template.title} choisi pour aujourd’hui") }.onFailure(state::handle) }
-    fun start(template: DayTemplate?) { editing = template; editorOpen = true; title = template?.title ?: "Ma journée type"; segments = template?.segments ?: listOf(DayTemplateSegment("sleep", "Sommeil", 480, "#5B6AA8", "00:00", "08:00"), DayTemplateSegment("work", "Travail", 480, "#D9895B", "08:00", "16:00"), DayTemplateSegment("free", "Temps libre", 480, "#8EAE8D", "16:00", "00:00")) }
+    fun start(template: DayTemplate?) { editing = template; editorOpen = true; title = template?.title ?: "Ma journée type"; segments = template?.segments ?: listOf(DayTemplateSegment("sleep", "Sommeil", 480, "#5B5FEF", "00:00", "08:00"), DayTemplateSegment("work", "Travail", 480, "#FF6B35", "08:00", "16:00"), DayTemplateSegment("free", "Temps libre", 480, "#00B894", "16:00", "00:00")) }
     LaunchedEffect(Unit) { load() }
     if (editorOpen) {
         DayTemplateEditor(title, segments, { title = it }, { segments = it }, { editorOpen = false; editing = null }, {
@@ -1027,9 +1028,18 @@ private fun DayTemplatesScreen(state: AppState, back: () -> Unit) {
 
 @Composable
 private fun DayTemplateCard(template: DayTemplate, open: () -> Unit, choose: () -> Unit) {
+    var selectedSegment by remember { mutableStateOf<DayTemplateSegment?>(null) }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Surface).clickable { open() }.padding(18.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text(template.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("24 h", color = Opuscule, fontWeight = FontWeight.Bold) }
         DayTemplateWheel(template.segments, Modifier.fillMaxWidth().padding(vertical = 10.dp))
+        template.segments.forEach { segment ->
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (selectedSegment?.id == segment.id) OpusculeSoft else Color.Transparent).clickable { selectedSegment = segment }.padding(horizontal = 8.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(12.dp).clip(CircleShape).background(runCatching { Color(android.graphics.Color.parseColor(segment.color)) }.getOrDefault(Opuscule)))
+                Text(segment.name, Modifier.padding(start = 8.dp).weight(1f), color = Ink)
+                Text("${segment.startTime} → ${segment.endTime}", color = Muted, style = MaterialTheme.typography.labelMedium)
+            }
+        }
+        selectedSegment?.let { segment -> Text("${segment.name} : ${segment.startTime} → ${segment.endTime} · ${templateSegmentDuration(segment) / 60} h ${templateSegmentDuration(segment) % 60} min", color = Opuscule, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 5.dp)) }
         Text(template.segments.joinToString("  •  ") { "${it.name} ${it.minutes / 60}h${if (it.minutes % 60 > 0) " ${it.minutes % 60}m" else ""}" }, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
         TextButton(choose) { Text("Choisir pour aujourd’hui") }
     }
@@ -1039,8 +1049,16 @@ private fun DayTemplateCard(template: DayTemplate, open: () -> Unit, choose: () 
 private fun DayTemplateWheel(segments: List<DayTemplateSegment>, modifier: Modifier = Modifier) {
     val surfaceColor = Surface
     val accentColor = Opuscule
+    val mutedColor = Muted
     fun clock(value: String) = value.split(":").let { (h, m) -> (h.toIntOrNull() ?: 0) * 60 + (m.toIntOrNull() ?: 0) }
-    Canvas(modifier.aspectRatio(1f).padding(12.dp)) { segments.forEach { segment -> val start = clock(segment.startTime) / 1440f * 360f - 90f; val duration = ((clock(segment.endTime) - clock(segment.startTime) + 1440) % 1440).let { if (it == 0) 1440 else it }; val color = runCatching { Color(android.graphics.Color.parseColor(segment.color)) }.getOrDefault(accentColor); drawArc(color, start, duration / 1440f * 360f, false, style = androidx.compose.ui.graphics.drawscope.Stroke(38.dp.toPx())) }; drawCircle(surfaceColor, radius = size.minDimension * .27f) }
+    Box(modifier.aspectRatio(1f).padding(12.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) { segments.forEach { segment -> val start = clock(segment.startTime) / 1440f * 360f - 90f; val duration = ((clock(segment.endTime) - clock(segment.startTime) + 1440) % 1440).let { if (it == 0) 1440 else it }; val color = runCatching { Color(android.graphics.Color.parseColor(segment.color)) }.getOrDefault(accentColor); drawArc(color, start, duration / 1440f * 360f, false, style = androidx.compose.ui.graphics.drawscope.Stroke(38.dp.toPx())) }; drawCircle(surfaceColor, radius = size.minDimension * .27f); for (hour in 0 until 24) { val radians = Math.toRadians((hour * 15f - 90f).toDouble()); val inner = size.minDimension * .47f; val outer = size.minDimension * if (hour % 3 == 0) .53f else .505f; drawLine(mutedColor.copy(alpha = if (hour % 3 == 0) .8f else .45f), Offset(size.width / 2 + kotlin.math.cos(radians).toFloat() * inner, size.height / 2 + kotlin.math.sin(radians).toFloat() * inner), Offset(size.width / 2 + kotlin.math.cos(radians).toFloat() * outer, size.height / 2 + kotlin.math.sin(radians).toFloat() * outer), strokeWidth = if (hour % 3 == 0) 2.dp.toPx() else 1.dp.toPx()) } }
+        Text("12", Modifier.align(Alignment.TopCenter).padding(top = 1.dp), color = Muted, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+        Text("3", Modifier.align(Alignment.CenterEnd).padding(end = 1.dp), color = Muted, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+        Text("6", Modifier.align(Alignment.BottomCenter).padding(bottom = 1.dp), color = Muted, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+        Text("9", Modifier.align(Alignment.CenterStart).padding(start = 1.dp), color = Muted, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("24 h", color = Ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text("journée", color = Muted, style = MaterialTheme.typography.labelSmall) }
+    }
 }
 
 private fun templateClockMinutes(value: String): Int {
@@ -1054,7 +1072,7 @@ private fun templateSegmentDuration(segment: DayTemplateSegment): Int {
 }
 
 private val dayTemplatePalette = listOf(
-    "#5B6AA8", "#D9895B", "#8EAE8D", "#C3A65B", "#7C8CFF", "#C56B9B", "#4D9B9B", "#A66A4C",
+    "#5B5FEF", "#FF6B35", "#00B894", "#FFC857", "#00A8FF", "#E84393", "#00CEC9", "#D63031",
 )
 
 @Composable
@@ -1086,7 +1104,7 @@ private fun DayTemplateEditor(title: String, segments: List<DayTemplateSegment>,
                     }
                 }
             }
-            TextButton({ setSegments(segments + DayTemplateSegment("segment-${segments.size + 1}", "Nouvelle activité", 60, "#7C8CFF", "00:00", "01:00")) }) { Text("+ Ajouter une activité") }
+            TextButton({ setSegments(segments + DayTemplateSegment("segment-${segments.size + 1}", "Nouvelle activité", 60, "#00A8FF", "00:00", "01:00")) }) { Text("+ Ajouter une activité") }
             if (total != 1440) Text("Le cercle doit couvrir exactement 1 440 minutes.", color = Warning)
             Spacer(Modifier.height(24.dp)); PrimaryButton("Enregistrer", save, Modifier.fillMaxWidth(), total == 1440 && title.isNotBlank() && segments.all { it.name.isNotBlank() && Regex("^#[0-9a-fA-F]{6}$").matches(it.color) })
         }

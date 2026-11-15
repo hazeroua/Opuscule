@@ -3,10 +3,10 @@ import * as api from '../api'
 import { useApp } from '../context/useApp'
 
 const DEFAULT_SEGMENTS = [
-  { id: 'sleep', name: 'Sommeil', start_time: '00:00', end_time: '08:00', minutes: 480, color: '#5B6AA8' },
-  { id: 'work', name: 'Travail', start_time: '08:00', end_time: '16:00', minutes: 480, color: '#D9895B' },
-  { id: 'meals', name: 'Repas', start_time: '16:00', end_time: '18:00', minutes: 120, color: '#8EAE8D' },
-  { id: 'free', name: 'Temps libre', start_time: '18:00', end_time: '00:00', minutes: 360, color: '#C3A65B' },
+  { id: 'sleep', name: 'Sommeil', start_time: '00:00', end_time: '08:00', minutes: 480, color: '#5B5FEF' },
+  { id: 'work', name: 'Travail', start_time: '08:00', end_time: '16:00', minutes: 480, color: '#FF6B35' },
+  { id: 'meals', name: 'Repas', start_time: '16:00', end_time: '18:00', minutes: 120, color: '#00B894' },
+  { id: 'free', name: 'Temps libre', start_time: '18:00', end_time: '00:00', minutes: 360, color: '#FFC857' },
 ]
 
 function emptyTemplate() { return { title: 'Ma journée type', segments: DEFAULT_SEGMENTS.map(segment => ({ ...segment })) } }
@@ -20,15 +20,19 @@ function arcPath(start, end) {
 }
 
 function DayWheel({ segments }) {
+  const [hovered, setHovered] = useState(null)
   let offset = 0
   return <div className="day-template-wheel-wrap">
     <svg viewBox="0 0 240 240" className="day-template-wheel" role="img" aria-label="Répartition de la journée sur 24 heures">
       <circle cx="120" cy="120" r="88" fill="none" stroke="var(--border)" strokeWidth="36" />
-      {segments.map(segment => { const start = clockMinutes(segment.start_time) / 1440 * 360; const end = start + segmentDuration(segment) / 1440 * 360; offset += segmentDuration(segment); return <path key={segment.id} d={arcPath(start, end)} fill="none" stroke={segment.color} strokeWidth="36" strokeLinecap="butt" /> })}
-      <circle cx="120" cy="120" r="62" fill="var(--panel)" />
+      {segments.map(segment => { const start = clockMinutes(segment.start_time) / 1440 * 360; const end = start + segmentDuration(segment) / 1440 * 360; offset += segmentDuration(segment); return <path key={segment.id} d={arcPath(start, end)} fill="none" stroke={segment.color} strokeWidth="36" strokeLinecap="butt" onMouseEnter={() => setHovered(segment)} onMouseLeave={() => setHovered(null)}><title>{`${segment.name} · ${segment.start_time} → ${segment.end_time} · ${formatMinutes(segmentDuration(segment))}`}</title></path> })}
+      {Array.from({ length: 24 }, (_, hour) => { const angle = hour * 15; const [x1, y1] = polar(120, 120, 101, angle); const [x2, y2] = polar(120, 120, 108, angle); return <line key={`tick-${hour}`} x1={x1} y1={y1} x2={x2} y2={y2} className={hour % 3 === 0 ? 'day-template-wheel-major-tick' : 'day-template-wheel-tick'} /> })}
+      {[['12', 0], ['3', 90], ['6', 180], ['9', 270]].map(([label, angle]) => { const [x, y] = polar(120, 120, 118, angle); return <text key={label} x={x} y={y + 4} textAnchor="middle" className="day-template-wheel-hour">{label}</text> })}
+      <circle cx="120" cy="120" r="62" fill="var(--bg-secondary)" />
       <text x="120" y="116" textAnchor="middle" className="day-template-wheel-number">24 h</text>
       <text x="120" y="137" textAnchor="middle" className="day-template-wheel-label">une journée</text>
     </svg>
+    {hovered && <div className="day-template-wheel-tooltip"><span className="day-template-dot" style={{ background: hovered.color }} /><strong>{hovered.name}</strong><span>{hovered.start_time} → {hovered.end_time} · {formatMinutes(segmentDuration(hovered))}</span></div>}
   </div>
 }
 
