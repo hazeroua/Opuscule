@@ -32,6 +32,12 @@ const TILE_STYLES = {
 }
 
 const CARTO_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+const CARTO_API_KEY = String(import.meta.env.VITE_CARTO_API_KEY || '').trim()
+
+function cartoTileUrl(url) {
+  if (!CARTO_API_KEY) return url
+  return `${url}?key=${encodeURIComponent(CARTO_API_KEY)}`
+}
 
 const TRIP_COLORS = ['#e8663f', '#e0a020', '#4caf7d', '#6ba3e8', '#7c64f0', '#d0518f', '#2fb0a8', '#8a6d3b']
 
@@ -431,8 +437,8 @@ function MapCanvas({ trips, selected, placement, active = true, onSelectTrip, on
     const style = TILE_STYLES[tileStyle]
     if (tileRef.current) tileRef.current.remove()
     if (labelRef.current) labelRef.current.remove()
-    tileRef.current = L.tileLayer(style.url, { subdomains: 'abcd', maxZoom: 20, attribution: CARTO_ATTR }).addTo(map)
-    labelRef.current = L.tileLayer(style.labels, { subdomains: 'abcd', maxZoom: 20, pane: 'shadowPane' }).addTo(map)
+    tileRef.current = L.tileLayer(cartoTileUrl(style.url), { subdomains: 'abcd', maxZoom: 20, attribution: CARTO_ATTR }).addTo(map)
+    labelRef.current = L.tileLayer(cartoTileUrl(style.labels), { subdomains: 'abcd', maxZoom: 20, pane: 'shadowPane' }).addTo(map)
   }, [tileStyle])
 
   // Rendu des tracés + marqueurs.
@@ -1309,8 +1315,8 @@ function StoryView({ trip, onClose, onOpenPhoto }) {
       zoomControl: false, attributionControl: false, dragging: false,
       scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, tap: false,
     }).setView([46.6, 2.4], 4)
-    L.tileLayer(TILE_STYLES.voyager.url, { subdomains: 'abcd', maxZoom: 20 }).addTo(map)
-    L.tileLayer(TILE_STYLES.voyager.labels, { subdomains: 'abcd', maxZoom: 20 }).addTo(map)
+    L.tileLayer(cartoTileUrl(TILE_STYLES.voyager.url), { subdomains: 'abcd', maxZoom: 20 }).addTo(map)
+    L.tileLayer(cartoTileUrl(TILE_STYLES.voyager.labels), { subdomains: 'abcd', maxZoom: 20 }).addTo(map)
     const latlngs = routeLatLngs(trip)
     if (latlngs.length >= 2) {
       L.polyline(latlngs, { color: trip.color, weight: 4, opacity: 0.95, dashArray: trip.status === 'planned' ? '2 9' : null, lineCap: 'round' }).addTo(map)
