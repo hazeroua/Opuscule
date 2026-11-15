@@ -4,6 +4,17 @@ const { getDb } = require('../db')
 
 const router = express.Router()
 const HEX = /^#[0-9a-f]{6}$/i
+const CLOCK = /^([01]\d|2[0-3]):([0-5]\d)$/
+
+function clockMinutes(value) {
+  const match = String(value || '').match(CLOCK)
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null
+}
+
+function clockValue(minutes) {
+  const normalized = ((minutes % 1440) + 1440) % 1440
+  return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`
+}
 
 function cleanSegments(value) {
   if (!Array.isArray(value) || !value.length || value.length > 48) return null
@@ -13,13 +24,36 @@ function cleanSegments(value) {
     minutes: Math.round(Number(segment?.minutes)),
     color: HEX.test(String(segment?.color || '')) ? String(segment.color).toUpperCase() : '#6B8AFD',
   }))
-  if (segments.some(segment => !segment.name || !Number.isInteger(segment.minutes) || segment.minutes < 1)) return null
+  let cursor = 0
+  segments.forEach(segment => {
+    const start = clockMinutes(segment.start_time)
+    const end = clockMinutes(segment.end_time)
+    if (start !== null && end !== null) {
+      segment.minutes = (end - start + 1440) % 1440 || 1440
+      segment.start_time = clockValue(start)
+      segment.end_time = clockValue(end)
+    } else {
+      segment.start_time = clockValue(cursor)
+      cursor += segment.minutes
+      segment.end_time = clockValue(cursor)
+    }
+  })
+  if (segments.some(segment => !segment.name || !Number.isInteger(segment.minutes) || segment.minutes < 1 || segment.minutes > 1440)) return null
   return segments.reduce((sum, segment) => sum + segment.minutes, 0) === 1440 ? segments : null
 }
 
 function rowPayload(row) {
   let segments = []
   try { segments = JSON.parse(row.segments_json) } catch (_) {}
+  let cursor = 0
+  segments = segments.map(segment => {
+    const start = clockMinutes(segment.start_time)
+    const end = clockMinutes(segment.end_time)
+    const minutes = start !== null && end !== null ? ((end - start + 1440) % 1440 || 1440) : Number(segment.minutes) || 0
+    const value = { ...segment, minutes, start_time: start !== null ? clockValue(start) : clockValue(cursor), end_time: end !== null ? clockValue(end) : clockValue(cursor + minutes) }
+    cursor += minutes
+    return value
+  })
   return { id: row.id, title: row.title, segments, created_at: row.created_at, updated_at: row.updated_at }
 }
 

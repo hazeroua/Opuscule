@@ -676,13 +676,13 @@ class ApiClient {
     suspend fun dayTemplates(token: String): List<DayTemplate> =
         callArray("/day-templates", token = token).objects().map { row ->
             DayTemplate(row.getString("id"), row.optString("title"), row.optJSONArray("segments").orEmpty().objects().map { segment ->
-                DayTemplateSegment(segment.optString("id"), segment.optString("name"), segment.optInt("minutes"), segment.optString("color", "#6B8AFD"))
+                DayTemplateSegment(segment.optString("id"), segment.optString("name"), segment.optInt("minutes"), segment.optString("color", "#6B8AFD"), segment.optString("start_time", "00:00"), segment.optString("end_time", "00:00"))
             })
         }
 
     private fun dayTemplatePayload(title: String, segments: List<DayTemplateSegment>) = JSONObject()
         .put("title", title)
-        .put("segments", JSONArray().apply { segments.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("minutes", it.minutes).put("color", it.color)) } })
+        .put("segments", JSONArray().apply { segments.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("minutes", it.minutes).put("color", it.color).put("start_time", it.startTime).put("end_time", it.endTime)) } })
 
     suspend fun createDayTemplate(token: String, title: String, segments: List<DayTemplateSegment>) {
         call("/day-templates", "POST", dayTemplatePayload(title, segments), token)
@@ -697,7 +697,7 @@ class ApiClient {
     }
 
     suspend fun todayDayTemplate(token: String): DayTemplate? = call("/day-templates/assignment/today", token = token)
-        .optJSONObject("template")?.let { row -> DayTemplate(row.getString("id"), row.optString("title"), row.optJSONArray("segments").orEmpty().objects().map { segment -> DayTemplateSegment(segment.optString("id"), segment.optString("name"), segment.optInt("minutes"), segment.optString("color", "#6B8AFD")) }) }
+        .optJSONObject("template")?.let { row -> DayTemplate(row.getString("id"), row.optString("title"), row.optJSONArray("segments").orEmpty().objects().map { segment -> DayTemplateSegment(segment.optString("id"), segment.optString("name"), segment.optInt("minutes"), segment.optString("color", "#6B8AFD"), segment.optString("start_time", "00:00"), segment.optString("end_time", "00:00")) }) }
 
     suspend fun setTodayDayTemplate(token: String, id: String) {
         call("/day-templates/assignment/today", "PUT", JSONObject().put("date", LocalDate.now().toString()).put("template_id", id), token)

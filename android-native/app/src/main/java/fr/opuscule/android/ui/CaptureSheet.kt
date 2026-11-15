@@ -220,7 +220,10 @@ fun QuickCaptureSheet(state: AppState, dismiss: () -> Unit) {
             onDismissRequest = { showDefinitionPicker = false },
             title = { Text("Fichier de définitions") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     definitionSources.forEach { source ->
                         Row(
                             Modifier.fillMaxWidth().clickable {

@@ -1012,7 +1012,7 @@ private fun DayTemplatesScreen(state: AppState, back: () -> Unit) {
     val scope = rememberCoroutineScope()
     fun load() = scope.launch { loading = true; runCatching { state.api.dayTemplates(token) }.onSuccess { rows = it }.onFailure(state::handle); loading = false }
     fun choose(template: DayTemplate) = scope.launch { runCatching { state.api.setTodayDayTemplate(token, template.id) }.onSuccess { DailyReminderScheduler.schedule(state.getApplication()); state.notify("${template.title} choisi pour aujourd’hui") }.onFailure(state::handle) }
-    fun start(template: DayTemplate?) { editing = template; editorOpen = true; title = template?.title ?: "Ma journée type"; segments = template?.segments ?: listOf(DayTemplateSegment("sleep", "Sommeil", 480, "#5B6AA8"), DayTemplateSegment("work", "Travail", 480, "#D9895B"), DayTemplateSegment("free", "Temps libre", 480, "#8EAE8D")) }
+    fun start(template: DayTemplate?) { editing = template; editorOpen = true; title = template?.title ?: "Ma journée type"; segments = template?.segments ?: listOf(DayTemplateSegment("sleep", "Sommeil", 480, "#5B6AA8", "00:00", "08:00"), DayTemplateSegment("work", "Travail", 480, "#D9895B", "08:00", "16:00"), DayTemplateSegment("free", "Temps libre", 480, "#8EAE8D", "16:00", "00:00")) }
     LaunchedEffect(Unit) { load() }
     if (editorOpen) {
         DayTemplateEditor(title, segments, { title = it }, { segments = it }, { editorOpen = false; editing = null }, {
@@ -1039,12 +1039,23 @@ private fun DayTemplateCard(template: DayTemplate, open: () -> Unit, choose: () 
 private fun DayTemplateWheel(segments: List<DayTemplateSegment>, modifier: Modifier = Modifier) {
     val surfaceColor = Surface
     val accentColor = Opuscule
-    Canvas(modifier.aspectRatio(1f).padding(12.dp)) { var start = -90f; segments.forEach { segment -> val sweep = segment.minutes / 1440f * 360f; val color = runCatching { Color(android.graphics.Color.parseColor(segment.color)) }.getOrDefault(accentColor); drawArc(color, start, sweep, false, style = androidx.compose.ui.graphics.drawscope.Stroke(38.dp.toPx())); start += sweep }; drawCircle(surfaceColor, radius = size.minDimension * .27f) }
+    fun clock(value: String) = value.split(":").let { (h, m) -> (h.toIntOrNull() ?: 0) * 60 + (m.toIntOrNull() ?: 0) }
+    Canvas(modifier.aspectRatio(1f).padding(12.dp)) { segments.forEach { segment -> val start = clock(segment.startTime) / 1440f * 360f - 90f; val duration = ((clock(segment.endTime) - clock(segment.startTime) + 1440) % 1440).let { if (it == 0) 1440 else it }; val color = runCatching { Color(android.graphics.Color.parseColor(segment.color)) }.getOrDefault(accentColor); drawArc(color, start, duration / 1440f * 360f, false, style = androidx.compose.ui.graphics.drawscope.Stroke(38.dp.toPx())) }; drawCircle(surfaceColor, radius = size.minDimension * .27f) }
+}
+
+private fun templateClockMinutes(value: String): Int {
+    val parts = value.split(":")
+    return (parts.getOrNull(0)?.toIntOrNull() ?: 0) * 60 + (parts.getOrNull(1)?.toIntOrNull() ?: 0)
+}
+
+private fun templateSegmentDuration(segment: DayTemplateSegment): Int {
+    val value = (templateClockMinutes(segment.endTime) - templateClockMinutes(segment.startTime) + 1440) % 1440
+    return if (value == 0) 1440 else value
 }
 
 @Composable
 private fun DayTemplateEditor(title: String, segments: List<DayTemplateSegment>, setTitle: (String) -> Unit, setSegments: (List<DayTemplateSegment>) -> Unit, back: () -> Unit, save: () -> Unit) {
-    val total = segments.sumOf { it.minutes }
+    val total = segments.sumOf(::templateSegmentDuration)
     CollectionScaffold("Modifier le cercle", back, save) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
             DayTemplateWheel(segments, Modifier.fillMaxWidth().padding(bottom = 12.dp))
@@ -1053,12 +1064,13 @@ private fun DayTemplateEditor(title: String, segments: List<DayTemplateSegment>,
             segments.forEachIndexed { index, segment ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(segment.name, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(name = value) else item }) }, Modifier.weight(1f), label = { Text("Temps") }, singleLine = true)
-                    OutlinedTextField(segment.minutes.toString(), { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(minutes = value.toIntOrNull()?.coerceAtLeast(1) ?: item.minutes) else item }) }, Modifier.width(92.dp), label = { Text("min") }, singleLine = true)
+                    OutlinedTextField(segment.startTime, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(startTime = value, minutes = templateSegmentDuration(item.copy(startTime = value))) else item }) }, Modifier.width(88.dp), label = { Text("De") }, singleLine = true)
+                    OutlinedTextField(segment.endTime, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(endTime = value, minutes = templateSegmentDuration(item.copy(endTime = value))) else item }) }, Modifier.width(88.dp), label = { Text("À") }, singleLine = true)
                     OutlinedTextField(segment.color, { value -> setSegments(segments.mapIndexed { i, item -> if (i == index) item.copy(color = value) else item }) }, Modifier.width(104.dp), label = { Text("Couleur") }, singleLine = true)
                     IconButton({ setSegments(segments.filterIndexed { i, _ -> i != index }) }) { Icon(Icons.Rounded.Delete, "Supprimer", tint = Danger) }
                 }
             }
-            TextButton({ setSegments(segments + DayTemplateSegment("segment-${segments.size + 1}", "Nouveau temps", 60, "#7C8CFF")) }) { Text("+ Ajouter un temps") }
+            TextButton({ setSegments(segments + DayTemplateSegment("segment-${segments.size + 1}", "Nouvelle activité", 60, "#7C8CFF", "00:00", "01:00")) }) { Text("+ Ajouter une activité") }
             if (total != 1440) Text("Le cercle doit couvrir exactement 1 440 minutes.", color = Warning)
             Spacer(Modifier.height(24.dp)); PrimaryButton("Enregistrer", save, Modifier.fillMaxWidth(), total == 1440 && title.isNotBlank() && segments.all { it.name.isNotBlank() && Regex("^#[0-9a-fA-F]{6}$").matches(it.color) })
         }
